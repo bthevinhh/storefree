@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kho Của Bạn</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Space+Mono:wght@400;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header>
+  <div class="brand-title" id="siteTitle">Kho <span>Của Bạn</span></div>
+  <div class="header-right">
+    <div class="vcoin-badge user-only" id="vcoinBadge" title="Số dư V-coin">💰 <span id="vcoinAmount">0</span></div>
+    <nav>
+      <button class="tab-btn active" data-view="home">Trang chủ</button>
+      <button class="tab-btn" data-view="profile">Hồ sơ</button>
+      <button class="admin-lock-btn" id="loginBtn">👤 Đăng nhập</button>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <!-- HOME -->
+  <section class="view active" id="view-home">
+    <div class="home-top">
+      <div class="label">Kệ hàng &mdash; <span id="countLabel">0</span> sản phẩm</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <button class="bulk-toggle-btn admin-only" id="bulkToggleBtn">☑ Chọn nhiều</button>
+        <button class="add-btn admin-only" id="openAddBtn">+ Thêm sản phẩm</button>
+      </div>
+    </div>
+    <div class="search-row">
+      <div class="search-wrap" id="searchWrap">
+        <svg class="search-icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round">
+          <circle cx="11" cy="11" r="7"></circle>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        </svg>
+        <input type="text" class="search-input" id="searchInput" placeholder="Tìm kiếm sản phẩm theo tên hoặc mô tả..." autocomplete="off">
+        <button class="search-clear-btn" id="searchClearBtn" title="Xoá tìm kiếm">✕</button>
+        <span class="search-shortcut-hint" id="searchShortcutHint">/</span>
+        <div class="search-suggestions" id="searchSuggestions"></div>
+      </div>
+    </div>
+    <div class="collection-chips" id="collectionChips"></div>
+    <div class="sort-row">
+      <select id="sortSelect">
+        <option value="newest">Mới nhất</option>
+        <option value="oldest">Cũ nhất</option>
+        <option value="name-asc">Tên A-Z</option>
+        <option value="name-desc">Tên Z-A</option>
+        <option value="popular">Xem nhiều nhất</option>
+      </select>
+      <button class="fav-filter-btn" id="favFilterBtn">♥ Yêu thích</button>
+    </div>
+    <div class="bulk-bar" id="bulkBar">
+      <span class="label"><b id="bulkCount">0</b> sản phẩm đã chọn</span>
+      <select id="bulkCollectionSelect"></select>
+      <button class="bulk-bar-btn bulk-apply-btn" id="bulkApplyBtn">Gán bộ sưu tập</button>
+      <button class="bulk-bar-btn bulk-delete-btn" id="bulkDeleteBtn">Xoá đã chọn</button>
+      <button class="bulk-bar-btn bulk-cancel-btn" id="bulkCancelBtn">Huỷ</button>
+    </div>
+    <div class="grid" id="productGrid"></div>
+    <div id="loadMoreWrap" style="text-align:center;margin-top:24px;display:none;">
+      <button class="ghost-btn" id="loadMoreBtn">Xem thêm sản phẩm</button>
+    </div>
+  </section>
+
+  <!-- ADD/EDIT PRODUCT -->
+  <section class="view" id="view-form">
+    <div class="form-card">
+      <h2 id="formTitle" style="font-size:22px;">Thêm sản phẩm mới</h2>
+      <label>Ảnh sản phẩm</label>
+      <div class="file-drop" id="fileDrop">Nhấn để chọn ảnh (sẽ tự nén cho nhẹ)</div>
+      <input type="file" id="imgInput" accept="image/*" style="display:none;">
+      <label>Tên sản phẩm</label>
+      <input type="text" id="pTitle" placeholder="VD: Bộ preset Lightroom">
+      <label>Mô tả ngắn</label>
+      <textarea id="pDesc" placeholder="Vài dòng giới thiệu sản phẩm..."></textarea>
+      <label>Link nhận hàng (link vượt / shortlink)</label>
+      <input type="url" id="pLink" placeholder="https://...">
+      <label>Giá quy đổi bằng V-coin (tuỳ chọn)</label>
+      <input type="text" id="pPriceVcoin" placeholder="Để trống hoặc 0 = nhận miễn phí" inputmode="numeric">
+      <label>Bộ sưu tập</label>
+      <select id="pCollection"></select>
+      <input type="text" id="pNewCollectionName" placeholder="Nhập tên bộ sưu tập mới..." style="display:none;margin-top:8px;">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+        <input type="checkbox" id="pPinned" style="width:auto;">
+        <span style="margin:0;">Ghim làm sản phẩm nổi bật (Hot 🔥)</span>
+      </label>
+      <label>Lịch ẩn/hiện (tuỳ chọn)</label>
+      <div class="schedule-row">
+        <div>
+          <span class="label" style="margin:0 0 6px;">Hiện từ</span>
+          <input type="text" id="pVisibleFrom" placeholder="YYYY-MM-DD (để trống = ngay)">
+        </div>
+        <div>
+          <span class="label" style="margin:0 0 6px;">Tự ẩn sau</span>
+          <input type="text" id="pVisibleUntil" placeholder="YYYY-MM-DD (để trống = không ẩn)">
+        </div>
+      </div>
+      <div class="form-actions">
+        <button class="primary-btn" id="saveProductBtn">Lưu sản phẩm</button>
+        <button class="ghost-btn" id="cancelFormBtn">Huỷ</button>
+        <button class="ghost-btn admin-only" id="undoEditBtn" style="display:none;">↩ Hoàn tác về bản trước</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ADD/EDIT SONG -->
+  <section class="view" id="view-song-form">
+    <div class="form-card">
+      <h2 id="songFormTitle" style="font-size:22px;">Thêm bài hát mới</h2>
+      <label>Ảnh bìa đĩa nhạc</label>
+      <div class="file-drop" id="coverDrop">Nhấn để chọn ảnh bìa (hình vuông đẹp nhất)</div>
+      <input type="file" id="coverInput" accept="image/*" style="display:none;">
+      <label>Tên bài hát</label>
+      <input type="text" id="sTitle" placeholder="VD: Yêu Đương Khó Quá Thì Chạy Về">
+      <label>Ca sĩ / Nghệ sĩ</label>
+      <input type="text" id="sArtist" placeholder="VD: Erik">
+      <label>File nhạc (mp3)</label>
+      <div class="file-drop" id="audioDrop">Nhấn để chọn file nhạc</div>
+      <input type="file" id="audioInput" accept="audio/*" style="display:none;">
+      <div id="audioStatus" style="font-size:12.5px;color:var(--muted);margin-top:6px;"></div>
+      <div class="form-actions">
+        <button class="primary-btn" id="saveSongBtn">Lưu bài hát</button>
+        <button class="ghost-btn" id="cancelSongFormBtn">Huỷ</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- PROFILE -->
+  <section class="view" id="view-profile">
+    <div class="dashboard-card admin-only" id="dashboardCard">
+      <h3>📊 Bảng điều khiển</h3>
+      <div class="dashboard-stats-row">
+        <div class="dashboard-stat-box">
+          <div class="dashboard-stat-num" id="dashTotalProducts">0</div>
+          <div class="dashboard-stat-label">Sản phẩm</div>
+        </div>
+        <div class="dashboard-stat-box">
+          <div class="dashboard-stat-num" id="dashTotalViews">0</div>
+          <div class="dashboard-stat-label">Lượt xem</div>
+        </div>
+        <div class="dashboard-stat-box">
+          <div class="dashboard-stat-num" id="dashTotalClaims">0</div>
+          <div class="dashboard-stat-label">Lượt nhận</div>
+        </div>
+      </div>
+      <span class="label" style="display:block;margin-bottom:8px;">TOP 5 SẢN PHẨM HOT NHẤT</span>
+      <div class="dashboard-top-list" id="dashboardTopList"></div>
+      <div class="dashboard-actions-row">
+        <button class="ghost-btn" id="exportJsonBtn">⬇ Export JSON</button>
+        <button class="ghost-btn" id="importJsonBtn">⬆ Import JSON</button>
+        <input type="file" id="importJsonInput" accept="application/json" style="display:none;">
+      </div>
+    </div>
+
+    <div class="vcoin-card user-only" id="vcoinCard">
+      <h3>💰 Ví V-coin của bạn</h3>
+      <div class="vcoin-balance-num" id="vcoinProfileAmount">0</div>
+      <div class="label" style="margin-top:2px;">V-COIN HIỆN CÓ</div>
+      <p style="color:var(--muted);font-size:13px;margin-top:10px;">Dùng V-coin để đổi các sản phẩm có gắn giá V-coin.</p>
+    </div>
+
+    <div class="profile-card" id="profileView">
+      <div class="id-tag">Chủ kho</div>
+      <div class="profile-top">
+        <img class="avatar" id="pfAvatar" src="" alt="">
+        <div>
+          <h2 class="profile-name" id="pfName">Chưa đặt tên</h2>
+          <div class="label" id="pfSiteNameLabel">TÊN CỬA HÀNG</div>
+        </div>
+      </div>
+      <p class="profile-bio" id="pfBio">Chưa có giới thiệu.</p>
+      <div class="social-list" id="pfSocials"></div>
+      <button class="ghost-btn edit-profile-btn admin-only" id="editProfileBtn">Chỉnh sửa hồ sơ</button>
+    </div>
+
+    <div class="playlist-card">
+      <h3>Danh sách nhạc nền</h3>
+      <span class="label">PHÁT NHẠC KHI GHÉ THĂM</span>
+      <div id="playlistList"></div>
+      <button class="add-btn admin-only playlist-add-btn" id="openAddSongBtn">+ Thêm bài hát</button>
+    </div>
+
+    <div class="playlist-card" id="favoritesCard">
+      <h3>Sản phẩm yêu thích</h3>
+      <span class="label">CẦN ĐĂNG NHẬP ĐỂ LƯU</span>
+      <div id="favoritesList"></div>
+    </div>
+
+    <div class="form-card" id="profileEditForm" style="display:none;margin-top:20px;">
+      <h2 style="font-size:22px;">Chỉnh sửa hồ sơ</h2>
+      <label>Tên cửa hàng (hiển thị trên đầu trang)</label>
+      <input type="text" id="fSiteName" placeholder="Kho Của Bạn">
+      <label>Ảnh đại diện</label>
+      <div class="file-drop" id="avatarDrop">Nhấn để chọn ảnh đại diện</div>
+      <input type="file" id="avatarInput" accept="image/*" style="display:none;">
+      <label>Tên hiển thị</label>
+      <input type="text" id="fName" placeholder="Tên của bạn">
+      <label>Giới thiệu</label>
+      <textarea id="fBio" placeholder="Vài dòng về bạn hoặc gian hàng..."></textarea>
+      <label>Link mạng xã hội / liên hệ (mỗi dòng: Tên | URL)</label>
+      <textarea id="fSocials" placeholder="Facebook | https://facebook.com/...&#10;Zalo | https://zalo.me/..."></textarea>
+      <label>Tiêu đề thông báo chào mừng</label>
+      <input type="text" id="fWelcomeTitle" placeholder="Xin chào! 👋">
+      <label>Nội dung thông báo chào mừng</label>
+      <textarea id="fWelcomeBody" placeholder="Chào mừng bạn đến với gian hàng..."></textarea>
+      <div class="form-actions">
+        <button class="primary-btn" id="saveProfileBtn">Lưu hồ sơ</button>
+        <button class="ghost-btn" id="cancelProfileBtn">Huỷ</button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<audio id="bgAudio" style="display:none;"></audio>
+<div class="player-bar hidden" id="playerBar">
+  <button class="player-delete-btn" id="playerDeleteBtn" title="Xoá bài này">✕</button>
+  <div class="player-disc-wrap" id="playerDiscWrap" title="Xem danh sách phát">
+    <div class="player-disc" id="playerDisc"><img id="playerDiscImg" src="" alt="" style="display:none;"></div>
+  </div>
+  <div class="player-info">
+    <div class="player-title" id="playerTitle">Chưa có bài hát</div>
+    <div class="player-artist" id="playerArtist">—</div>
+    <div class="player-progress-row">
+      <span class="player-time" id="playerCurrentTime">00:00</span>
+      <input type="range" class="player-seek" id="playerSeek" min="0" max="1000" value="0">
+      <span class="player-time" id="playerDuration">00:00</span>
+    </div>
+  </div>
+  <div class="player-controls">
+    <button class="player-btn" id="playerShuffleBtn" title="Phát ngẫu nhiên">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M17 3h4v4h-2V6.41l-3.29 3.3-1.42-1.42L17.59 5H17V3zM3 5h5.17l6 6-1.41 1.41L7.17 7H3V5zm14 16h4v-4h-2v1.59l-3.29-3.3-1.42 1.42L17.59 20H17v1zM3 19h5.17l9-9-1.41-1.41L7.17 17H3v2z"/></svg>
+    </button>
+    <button class="player-btn" id="playerPrevBtn" title="Bài trước">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
+    </button>
+    <button class="player-btn play-btn" id="playerPlayBtn" title="Phát/Tạm dừng">
+      <svg id="playerPlayIcon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+    </button>
+    <button class="player-btn" id="playerNextBtn" title="Bài tiếp theo">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M16 6h2v12h-2zM6 6l8.5 6L6 18z"/></svg>
+    </button>
+    <button class="player-btn" id="playerRepeatBtn" title="Lặp lại bài này">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/></svg>
+    </button>
+  </div>
+  <div class="player-extra-row">
+    <div class="player-volume-wrap">
+      <button class="player-btn" id="playerMuteBtn" title="Tắt/bật tiếng">
+        <svg id="playerVolIcon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M3 10v4h4l5 5V5L7 10H3zm13.5 2a4.5 4.5 0 0 0-2.5-4.03v8.05A4.5 4.5 0 0 0 16.5 12z"/></svg>
+      </button>
+      <input type="range" class="player-volume" id="playerVolume" min="0" max="100" value="50">
+    </div>
+  </div>
+</div>
+
+<div class="queue-overlay" id="queueOverlay">
+  <div class="queue-box">
+    <h4>Danh sách phát</h4>
+    <div id="queueList"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<div class="product-modal-overlay" id="productModalOverlay">
+  <div class="product-modal">
+    <button class="product-modal-close" id="closeProductModalBtn">✕</button>
+    <div class="product-modal-img-wrap">
+      <img id="modalImg" src="" alt="" loading="lazy">
+    </div>
+    <div class="product-modal-body">
+      <div class="modal-collection-tag" id="modalCollectionTag"></div>
+      <h2 id="modalTitle"></h2>
+      <div class="modal-stats-row" id="modalStatsRow"></div>
+      <div class="product-modal-desc" id="modalDesc"></div>
+      <div class="product-modal-actions">
+        <button class="primary-btn" id="modalClaimBtn">Nhận sản phẩm</button>
+        <button class="icon-btn" id="modalCopyBtn" title="Copy link nhận">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+        </button>
+        <button class="icon-btn" id="modalFavBtn" title="Yêu thích">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
+        </button>
+        <button class="ghost-btn" id="modalCloseBtn2">Đóng</button>
+      </div>
+      <div class="related-products-block" id="relatedProductsBlock" style="display:none;">
+        <h4>Sản phẩm cùng bộ sưu tập</h4>
+        <div class="related-products-grid" id="relatedProductsGrid"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="welcomeOverlay">
+  <div class="welcome-box">
+    <h2 id="welcomeTitle">Xin chào! 👋</h2>
+    <p id="welcomeBody">Chào mừng bạn đến với gian hàng. Chọn sản phẩm bạn thích và nhấn "Nhận sản phẩm" để lấy về nhé.</p>
+    <button class="welcome-close" id="closeWelcomeBtn">Đóng &amp; bắt đầu</button>
+  </div>
+</div>
+
+<div class="overlay" id="userAuthOverlay" style="display:none;">
+  <div class="welcome-box" style="max-width:360px;">
+    <h2 style="font-size:24px;">Đăng nhập</h2>
+    <p style="margin-bottom:0;">Đăng nhập tài khoản của bạn hoặc tài khoản quản trị viên, hoặc tạo tài khoản mới để nhận sản phẩm.</p>
+    <div class="auth-tabs">
+      <button class="auth-tab-btn active" id="authTabLoginBtn">Đăng nhập</button>
+      <button class="auth-tab-btn" id="authTabRegisterBtn">Đăng ký</button>
+    </div>
+
+    <div class="auth-form active" id="authFormLogin">
+      <label>Tên đăng nhập</label>
+      <input type="text" id="userLoginId" placeholder="Tên đăng nhập của bạn" autocomplete="off">
+      <label>Mật khẩu</label>
+      <input type="password" id="userLoginPass" placeholder="Mật khẩu">
+      <div class="auth-error-msg" id="userLoginError">Sai tên đăng nhập hoặc mật khẩu.</div>
+      <button class="welcome-close" id="submitUserLoginBtn" style="width:100%;margin-top:4px;background:var(--violet);">Đăng nhập</button>
+    </div>
+
+    <div class="auth-form" id="authFormRegister">
+      <label>Tên hiển thị</label>
+      <input type="text" id="userRegName" placeholder="Tên của bạn" autocomplete="off">
+      <label>Tên đăng nhập (ID)</label>
+      <input type="text" id="userRegId" placeholder="VD: minh123" autocomplete="off">
+      <label>Mật khẩu</label>
+      <input type="password" id="userRegPass" placeholder="Ít nhất 4 ký tự">
+      <div class="auth-error-msg" id="userRegError">Đã có lỗi xảy ra.</div>
+      <button class="welcome-close" id="submitUserRegBtn" style="width:100%;margin-top:4px;background:var(--violet);">Tạo tài khoản</button>
+    </div>
+
+    <button class="welcome-close" id="closeUserAuthBtn" style="margin-top:10px;background:none;color:#5a4d3a;box-shadow:none;">Đóng</button>
+  </div>
+</div>
+
+<div class="confirm-overlay" id="confirmOverlay">
+  <div class="confirm-box">
+    <h3 id="confirmTitle">Xác nhận</h3>
+    <p id="confirmMessage">Bạn có chắc chắn không?</p>
+    <input type="text" id="confirmInput" style="display:none;">
+    <div class="confirm-actions">
+      <button class="confirm-btn-cancel" id="confirmCancelBtn">Huỷ</button>
+      <button class="confirm-btn-ok" id="confirmOkBtn">Đồng ý</button>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
