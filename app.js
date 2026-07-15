@@ -549,7 +549,7 @@ async function submitUserLogin(){
   if(rawUsername.includes('@')){
     try{
       const cred = await signInWithEmailAndPassword(auth, rawUsername, password);
-      const adminSnap = await getDoc(doc(db, 'buivinh', cred.user.uid));
+      const adminSnap = await getDoc(doc(db, 'admins', cred.user.uid));
       if(adminSnap.exists()){
         adminUnlocked = true;
         setCurrentUser({username: cred.user.email, displayName: 'Quản trị viên'});
