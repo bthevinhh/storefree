@@ -25,6 +25,34 @@
 <main>
   <!-- HOME -->
   <section class="view active" id="view-home">
+    <div class="showcase-section" id="showcaseSection">
+      <div class="showcase-row">
+        <div class="showcase-carousel" id="showcaseCarousel">
+          <div class="showcase-track" id="showcaseTrack"></div>
+          <button class="showcase-nav prev" id="showcasePrevBtn" aria-label="Ảnh trước" title="Trước">‹</button>
+          <button class="showcase-nav next" id="showcaseNextBtn" aria-label="Ảnh sau" title="Sau">›</button>
+          <div class="showcase-dots" id="showcaseDots"></div>
+          <div class="showcase-admin-overlay admin-only" id="showcaseAdminBar">
+            <button class="showcase-admin-btn" id="showcaseAddImgBtn">+ Ảnh</button>
+            <button class="showcase-admin-btn" id="showcaseAddVideoBtn">+ Video</button>
+          </div>
+        </div>
+        <div class="chat-panel" id="chatPanel">
+          <div class="chat-header">💬 Feedback &amp; Nhắn tin</div>
+          <div class="chat-messages" id="chatMessages"></div>
+          <div class="chat-input-row" id="chatInputRow" style="display:none;">
+            <input type="text" id="chatInput" placeholder="Nhập tin nhắn hoặc feedback..." maxlength="500" autocomplete="off">
+            <button class="chat-send-btn" id="chatSendBtn">Gửi</button>
+          </div>
+          <div class="chat-login-hint" id="chatLoginHint" style="display:none;">
+            <span>Đăng nhập để gửi tin nhắn/feedback</span>
+            <button class="mini-btn" id="chatLoginPromptBtn">Đăng nhập</button>
+          </div>
+        </div>
+      </div>
+      <input type="file" id="showcaseImgInput" accept="image/*" style="display:none;">
+      <input type="file" id="showcaseVideoInput" accept="video/*" style="display:none;">
+    </div>
     <div class="home-top">
       <div class="label">Kệ hàng &mdash; <span id="countLabel">0</span> sản phẩm</div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;">
@@ -316,7 +344,7 @@
 
     <div class="auth-form active" id="authFormLogin">
       <label>Tên đăng nhập</label>
-      <input type="text" id="userLoginId" placeholder="Tên đăng nhập của bạn" autocomplete="off">
+      <input type="text" id="userLoginId" placeholder="Tên đăng nhập (Admin dùng email)" autocomplete="off">
       <label>Mật khẩu</label>
       <input type="password" id="userLoginPass" placeholder="Mật khẩu">
       <div class="auth-error-msg" id="userLoginError">Sai tên đăng nhập hoặc mật khẩu.</div>

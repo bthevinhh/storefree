@@ -976,6 +976,154 @@ body.bulk-mode .parcel{cursor:pointer;}
   padding:4px 10px;border-radius:50px;margin-top:6px;
 }
 
+/* ---------- SHOWCASE CAROUSEL (ảnh/video giới thiệu) ---------- */
+.showcase-section{margin-bottom:26px;}
+.showcase-section.showcase-hidden{display:none;}
+.showcase-row{display:flex;gap:18px;align-items:stretch;}
+.showcase-row .showcase-carousel{flex:1 1 62%;min-width:0;}
+.showcase-carousel{
+  position:relative;
+  background:var(--crate);
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:20px;
+  overflow:hidden;
+  box-shadow:0 24px 60px -24px rgba(0,0,0,.6);
+  aspect-ratio:16/8;
+  max-height:460px;
+}
+.showcase-track{
+  display:flex;
+  height:100%;
+  transition:transform .45s var(--ease);
+}
+.showcase-slide{
+  flex:0 0 100%;
+  width:100%;height:100%;
+  position:relative;
+  background:#000;
+}
+.showcase-slide img, .showcase-slide video{
+  width:100%;height:100%;object-fit:cover;display:block;
+}
+.showcase-slide-empty{
+  display:flex;align-items:center;justify-content:center;
+  width:100%;height:100%;color:var(--muted);font-size:13.5px;line-height:1.6;
+  text-align:center;padding:20px;
+  flex-direction:column;gap:8px;
+}
+.showcase-slide-remove{
+  position:absolute;top:12px;right:12px;z-index:3;
+  width:30px;height:30px;border-radius:50%;
+  background:rgba(20,16,28,.7);border:1px solid rgba(255,255,255,.15);
+  color:#fff;cursor:pointer;font-size:14px;line-height:1;
+  display:flex;align-items:center;justify-content:center;
+  transition:.15s;
+}
+.showcase-slide-remove:hover{background:var(--stamp);border-color:var(--stamp);}
+.showcase-nav{
+  position:absolute;top:50%;transform:translateY(-50%);
+  width:38px;height:38px;border-radius:50%;
+  background:rgba(19,16,25,.55);border:1px solid rgba(255,255,255,.14);
+  color:#fff;font-size:20px;line-height:1;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  backdrop-filter:blur(4px);
+  transition:.18s var(--ease);
+  z-index:3;
+}
+.showcase-nav:hover{background:var(--amber);color:var(--text-dark);border-color:var(--amber);}
+.showcase-nav.prev{left:14px;}
+.showcase-nav.next{right:14px;}
+.showcase-dots{
+  position:absolute;bottom:14px;left:0;right:0;
+  display:flex;justify-content:center;gap:7px;z-index:3;
+}
+.showcase-dot{
+  width:8px;height:8px;border-radius:50%;
+  background:rgba(255,255,255,.35);border:none;cursor:pointer;padding:0;
+  transition:.18s var(--ease);
+}
+.showcase-dot.active{background:var(--amber);width:22px;border-radius:5px;}
+/* Nút Admin nổi ở góc trên-phải khung carousel, luôn thấy không cần cuộn */
+.showcase-admin-overlay{
+  position:absolute;top:14px;right:14px;z-index:4;
+  gap:8px;
+}
+body.admin-mode .showcase-admin-overlay{display:flex !important;}
+.showcase-admin-btn{
+  font-family:'Space Mono',monospace;font-size:11.5px;font-weight:700;letter-spacing:.04em;
+  background:rgba(19,16,25,.72);border:1px solid rgba(240,169,60,.5);color:var(--amber-soft);
+  padding:8px 14px;border-radius:50px;cursor:pointer;backdrop-filter:blur(4px);
+  transition:.18s var(--ease);
+}
+.showcase-admin-btn:hover{background:var(--amber);color:var(--text-dark);border-color:var(--amber);}
+
+/* ---------- CHAT PANEL (feedback + nhắn tin công khai) ---------- */
+.chat-panel{
+  flex:0 0 320px;
+  display:flex;flex-direction:column;
+  background:var(--crate);
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:20px;
+  overflow:hidden;
+  box-shadow:0 24px 60px -24px rgba(0,0,0,.6);
+}
+.chat-header{
+  padding:14px 16px;
+  font-family:'Space Mono',monospace;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--amber-soft);
+  border-bottom:1px solid rgba(255,255,255,.07);
+  flex:0 0 auto;
+}
+.chat-messages{
+  flex:1 1 auto;
+  overflow-y:auto;
+  padding:14px 16px;
+  display:flex;flex-direction:column;gap:10px;
+  min-height:0;
+}
+.chat-messages:empty::before{
+  content:'Chưa có tin nhắn nào. Hãy là người đầu tiên!';
+  color:var(--muted);font-size:12.5px;
+}
+.chat-msg{
+  background:rgba(255,255,255,.04);
+  border-radius:12px;
+  padding:8px 11px;
+  animation:popin .3s var(--ease) both;
+}
+.chat-msg.chat-msg-admin{
+  background:rgba(124,108,240,.14);border:1px solid rgba(124,108,240,.3);
+}
+.chat-msg-head{display:flex;align-items:baseline;gap:6px;margin-bottom:3px;flex-wrap:wrap;}
+.chat-msg-name{font-size:12px;font-weight:700;color:var(--amber-soft);}
+.chat-msg.chat-msg-admin .chat-msg-name{color:var(--violet);}
+.chat-msg-time{font-size:10px;color:var(--muted);font-family:'Space Mono',monospace;}
+.chat-msg-text{font-size:13.5px;color:var(--text-light);line-height:1.5;word-break:break-word;white-space:pre-wrap;}
+.chat-msg-del{
+  float:right;background:none;border:none;color:var(--muted);cursor:pointer;font-size:11px;padding:0 0 0 6px;
+}
+.chat-msg-del:hover{color:var(--stamp);}
+.chat-input-row{
+  flex:0 0 auto;display:flex;gap:8px;padding:12px 14px;border-top:1px solid rgba(255,255,255,.07);
+}
+.chat-input-row input{
+  flex:1;min-width:0;background:rgba(0,0,0,.22);border:1.5px solid var(--crate-line);
+  color:var(--text-light);padding:9px 12px;border-radius:10px;font-family:'Inter',sans-serif;font-size:13.5px;
+}
+.chat-input-row input:focus{outline:none;border-color:var(--amber);box-shadow:0 0 0 3px rgba(240,169,60,.18);}
+.chat-send-btn{
+  background:linear-gradient(135deg,var(--amber),#e08f2a);color:var(--text-dark);border:none;
+  font-family:'Space Mono',monospace;font-weight:700;font-size:12px;letter-spacing:.04em;text-transform:uppercase;
+  padding:0 16px;border-radius:10px;cursor:pointer;transition:transform .18s var(--ease);
+}
+.chat-send-btn:hover{transform:translateY(-1px);}
+.chat-send-btn:disabled{opacity:.5;cursor:not-allowed;transform:none;}
+.chat-login-hint{
+  flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:12px 14px;border-top:1px solid rgba(255,255,255,.07);
+  font-size:12.5px;color:var(--muted);
+}
+
 @media (max-width:520px){
   header{padding:16px 20px;}
   main{padding:32px 18px 90px;}
@@ -988,4 +1136,9 @@ body.bulk-mode .parcel{cursor:pointer;}
   .player-bar{left:16px;right:16px;width:auto;bottom:16px;}
   .bulk-bar{top:70px;}
   .dashboard-stats-row{grid-template-columns:repeat(3,1fr);gap:8px;}
+  .showcase-carousel{aspect-ratio:4/5;max-height:420px;}
+  .showcase-nav{width:32px;height:32px;font-size:17px;}
+  .showcase-row{flex-direction:column;}
+  .showcase-row .showcase-carousel{flex:none;}
+  .chat-panel{flex:none;height:340px;}
 }

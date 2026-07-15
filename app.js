@@ -1,10 +1,16 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {
-  getFirestore, collection, doc, setDoc, getDoc, getDocs, deleteDoc, updateDoc, increment
+  getFirestore, collection, doc, setDoc, getDoc, getDocs, deleteDoc, updateDoc, increment,
+  addDoc, query, orderBy, limit, onSnapshot
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import {
+  getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 // ---------------- CONFIG ----------------
-const ADMIN_USERNAME = "adminbuivinh0804";
-const ADMIN_PASSWORD = "hmm_0804";
+// KHÔNG còn lưu tài khoản/mật khẩu Admin trong code nữa.
+// Đăng nhập Admin dùng Firebase Authentication (email/mật khẩu thật, không hiển thị ở client).
+// Quyền admin được xác định bằng việc UID của người đăng nhập có tồn tại
+// trong collection Firestore "admins" hay không (xem hướng dẫn thiết lập bên dưới).
 
 const firebaseConfig = {
   apiKey: "AIzaSyAc_AJqiv0WX9FYOPCbDPR9nq8OWS0PkmE",
@@ -16,11 +22,39 @@ const firebaseConfig = {
   measurementId: "G-7N4C0D55CJ"
 };
 let db = null;
+let auth = null;
+let adminUnlocked = false; // cập nhật bởi onAuthStateChanged bên dưới, không lưu mật khẩu ở đây
 try{
   const app = initializeApp(firebaseConfig);
   db = getFirestore(app);
+  auth = getAuth(app);
 }catch(e){
   console.error('Chưa cấu hình Firebase đúng cách:', e);
+}
+
+// Theo dõi phiên đăng nhập Firebase Auth. Khi có người đăng nhập, kiểm tra
+// xem UID của họ có trong collection "admins" không -> nếu có thì mở quyền Admin.
+// Việc đọc doc "admins/{uid}" chỉ được phép với chính UID đó (xem Firestore Rules đề xuất).
+if(auth){
+  onAuthStateChanged(auth, async (user)=>{
+    if(user){
+      try{
+        const adminSnap = await getDoc(doc(db, 'admins', user.uid));
+        adminUnlocked = adminSnap.exists();
+      }catch(e){
+        adminUnlocked = false;
+      }
+      if(adminUnlocked){
+        setCurrentUser({username: user.email, displayName: 'Quản trị viên'});
+      }
+    } else {
+      adminUnlocked = false;
+    }
+    renderAuthUI();
+    applyFiltersAndRender();
+    renderCollectionChipsUI();
+    renderDashboard();
+  });
 }
 
 // ---------------- CLOUDINARY (lưu ảnh & nhạc) ----------------
@@ -232,6 +266,28 @@ async function saveProfile(p){
     return false;
   }
 }
+// ---------------- MÀN HÌNH GIỚI THIỆU (showcase carousel: ảnh + video) ----------------
+async function loadShowcase(){
+  if(!db) return [];
+  try{
+    const snap = await getDoc(doc(db,'site','showcase'));
+    if(!snap.exists()) return [];
+    const data = snap.data();
+    return Array.isArray(data.items) ? data.items : [];
+  }catch(e){ console.error(e); return []; }
+}
+async function saveShowcase(items){
+  if(!db){ showToast('Chưa cấu hình Firebase — xem hướng dẫn trong file.'); return false; }
+  try{
+    await setDoc(doc(db,'site','showcase'), {items});
+    return true;
+  }catch(e){
+    console.error(e);
+    showToast('Lỗi lưu màn hình giới thiệu: ' + (e && e.message ? e.message : 'không rõ nguyên nhân'));
+    return false;
+  }
+}
+
 async function loadPlaylist(){
   if(!db) return [];
   try{
@@ -373,6 +429,9 @@ function renderAuthUI(){
   const cur = getCurrentUser();
   document.body.classList.toggle('admin-mode', admin);
   document.body.classList.toggle('user-mode', !admin && !!cur);
+  if(typeof renderShowcaseUI === 'function' && document.getElementById('showcaseSection')) renderShowcaseUI();
+  if(typeof renderChatAccessUI === 'function' && document.getElementById('chatPanel')) renderChatAccessUI();
+  if(typeof renderChatMessages === 'function' && document.getElementById('chatMessages')) renderChatMessages();
   if(admin){
     btn.textContent = '🔓 ' + (cur && cur.displayName ? cur.displayName : 'Admin') + ' · Thoát';
   } else if(cur){
@@ -437,11 +496,6 @@ async function submitUserRegister(){
     errEl.style.display = 'block';
     return;
   }
-  if(username === normalizeUsername(ADMIN_USERNAME)){
-    errEl.textContent = 'Tên đăng nhập này đã được sử dụng.';
-    errEl.style.display = 'block';
-    return;
-  }
   if(!password || password.length < 4){ errEl.textContent = 'Mật khẩu cần ít nhất 4 ký tự.'; errEl.style.display = 'block'; return; }
 
   const btn = document.getElementById('submitUserRegBtn');
@@ -490,19 +544,50 @@ async function submitUserLogin(){
   const btn = document.getElementById('submitUserLoginBtn');
   btn.disabled = true;
 
-  // 1) Kiểm tra trước xem có phải tài khoản Quản trị (Admin) không.
-  //    So khớp chính xác hoa/thường với thông tin admin cứng trong code.
-  if(rawUsername === ADMIN_USERNAME && password === ADMIN_PASSWORD){
-    localStorage.setItem('siteAdminUnlocked', '1');
-    setCurrentUser({username: ADMIN_USERNAME, displayName: 'Quản trị viên'});
-    renderAuthUI();
-    closeUserAuthModal();
-    btn.disabled = false;
-    showToast('Đã đăng nhập với quyền Admin.');
-    applyFiltersAndRender();
-    renderCollectionChipsUI();
-    renderDashboard();
-    return;
+  // 1) Nếu ô "tên đăng nhập" là một địa chỉ email -> thử đăng nhập Admin qua
+  //    Firebase Authentication thật (mật khẩu không hề nằm trong code hay Firestore ở dạng đọc được).
+  if(rawUsername.includes('@')){
+    try{
+      const cred = await signInWithEmailAndPassword(auth, rawUsername, password);
+      const adminSnap = await getDoc(doc(db, 'buivinh', cred.user.uid));
+      if(adminSnap.exists()){
+        adminUnlocked = true;
+        setCurrentUser({username: cred.user.email, displayName: 'Quản trị viên'});
+        renderAuthUI();
+        closeUserAuthModal();
+        btn.disabled = false;
+        showToast('Đã đăng nhập với quyền Admin.');
+        applyFiltersAndRender();
+        renderCollectionChipsUI();
+        renderDashboard();
+        return;
+      } else {
+        // Email/mật khẩu đúng nhưng tài khoản này không có quyền admin.
+        await signOut(auth);
+        errEl.textContent = 'Tài khoản này không có quyền quản trị.';
+        errEl.style.display = 'block';
+        btn.disabled = false;
+        return;
+      }
+    }catch(e){
+      console.error('Lỗi đăng nhập Admin (Firebase Auth):', e.code, e.message);
+      if(e.code === 'auth/operation-not-allowed'){
+        errEl.textContent = 'Chưa bật đăng nhập Email/Password trong Firebase Console.';
+      } else if(e.code === 'auth/user-not-found' || e.code === 'auth/invalid-credential' || e.code === 'auth/wrong-password'){
+        errEl.textContent = 'Sai email hoặc mật khẩu, hoặc tài khoản này chưa được tạo trong Firebase Authentication.';
+      } else if(e.code === 'auth/unauthorized-domain'){
+        errEl.textContent = 'Domain này chưa được thêm vào danh sách Authorized domains của Firebase Auth.';
+      } else if(e.code === 'auth/too-many-requests'){
+        errEl.textContent = 'Đăng nhập sai quá nhiều lần, Firebase tạm khoá. Vui lòng thử lại sau.';
+      } else if(e.code === 'permission-denied' || e.code === 'firestore/permission-denied'){
+        errEl.textContent = 'Đăng nhập đúng, nhưng Firestore Rules đang chặn đọc collection "admins". Xem hướng dẫn cập nhật Rules.';
+      } else {
+        errEl.textContent = 'Lỗi đăng nhập (' + (e.code || e.message) + '). Xem Console (F12) để biết chi tiết.';
+      }
+      errEl.style.display = 'block';
+      btn.disabled = false;
+      return;
+    }
   }
 
   // 2) Không phải Admin -> kiểm tra trong danh sách tài khoản người dùng thường.
@@ -1200,14 +1285,15 @@ window.deleteProduct = async function(id){
   showToast('Đã xoá sản phẩm.');
 };
 function isAdminUnlocked(){
-  return localStorage.getItem('siteAdminUnlocked') === '1';
+  return adminUnlocked;
 }
 // Nút "loginBtn" duy nhất trên nav giờ dùng chung cho cả Admin lẫn khách hàng:
 // - Chưa đăng nhập gì cả -> mở modal đăng nhập/đăng ký chung.
 // - Đã đăng nhập (Admin hoặc khách hàng) -> bấm để đăng xuất khỏi vai trò hiện tại.
-document.getElementById('loginBtn').addEventListener('click', ()=>{
+document.getElementById('loginBtn').addEventListener('click', async ()=>{
   if(isAdminUnlocked()){
-    localStorage.removeItem('siteAdminUnlocked');
+    try{ await signOut(auth); }catch(e){}
+    adminUnlocked = false;
     clearCurrentUser();
     renderAuthUI();
     exitBulkMode();
@@ -2040,6 +2126,251 @@ document.addEventListener('keydown', e=>{
   if(e.key === 'Escape') queueOverlay.classList.remove('open');
 });
 
+// ---------------- MÀN HÌNH GIỚI THIỆU: render + tương tác ----------------
+let showcaseItems = [];
+let showcaseIndex = 0;
+let showcaseAutoTimer = null;
+
+function stopAllShowcaseVideos(exceptIndex){
+  document.querySelectorAll('.showcase-slide video').forEach(v=>{
+    const idx = Number(v.dataset.idx);
+    if(idx !== exceptIndex){ v.pause(); }
+  });
+}
+
+function goToShowcaseSlide(idx){
+  if(showcaseItems.length === 0) return;
+  showcaseIndex = ((idx % showcaseItems.length) + showcaseItems.length) % showcaseItems.length;
+  const track = document.getElementById('showcaseTrack');
+  if(track) track.style.transform = `translateX(-${showcaseIndex * 100}%)`;
+  document.querySelectorAll('.showcase-dot').forEach((d,i)=>d.classList.toggle('active', i===showcaseIndex));
+  stopAllShowcaseVideos(showcaseIndex);
+  const activeVideo = document.querySelector(`.showcase-slide video[data-idx="${showcaseIndex}"]`);
+  if(activeVideo){ activeVideo.play().catch(()=>{}); }
+  resetShowcaseAutoplay();
+}
+function resetShowcaseAutoplay(){
+  if(showcaseAutoTimer) clearInterval(showcaseAutoTimer);
+  const current = showcaseItems[showcaseIndex];
+  if(showcaseItems.length > 1 && (!current || current.type !== 'video')){
+    showcaseAutoTimer = setInterval(()=>goToShowcaseSlide(showcaseIndex+1), 5000);
+  }
+}
+
+async function removeShowcaseItem(idx){
+  const ok = await askConfirm({title:'Xoá mục này?', message:'Ảnh/video này sẽ bị xoá khỏi màn hình giới thiệu.', okText:'Xoá', danger:true});
+  if(!ok) return;
+  showcaseItems.splice(idx,1);
+  const saved = await saveShowcase(showcaseItems);
+  if(saved){ showToast('Đã xoá.'); renderShowcaseUI(); }
+}
+
+function renderShowcaseUI(){
+  const section = document.getElementById('showcaseSection');
+  const track = document.getElementById('showcaseTrack');
+  const dots = document.getElementById('showcaseDots');
+  const admin = isAdminUnlocked();
+
+  if(showcaseItems.length === 0 && !admin){
+    section.classList.add('showcase-hidden');
+    return;
+  }
+  section.classList.remove('showcase-hidden');
+
+  if(showcaseItems.length === 0){
+    track.innerHTML = `<div class="showcase-slide"><div class="showcase-slide-empty">Chưa có ảnh/video giới thiệu nào.<br>Bấm "+ Ảnh" hoặc "+ Video" bên dưới để thêm.</div></div>`;
+    dots.innerHTML = '';
+    document.getElementById('showcasePrevBtn').style.display = 'none';
+    document.getElementById('showcaseNextBtn').style.display = 'none';
+    return;
+  }
+
+  document.getElementById('showcasePrevBtn').style.display = showcaseItems.length > 1 ? 'flex' : 'none';
+  document.getElementById('showcaseNextBtn').style.display = showcaseItems.length > 1 ? 'flex' : 'none';
+
+  track.innerHTML = showcaseItems.map((it,i)=>{
+    const media = it.type === 'video'
+      ? `<video data-idx="${i}" src="${it.url}" muted loop playsinline controls></video>`
+      : `<img src="${it.url}" alt="" loading="lazy">`;
+    const removeBtn = `<button class="showcase-slide-remove admin-only" title="Xoá" onclick="removeShowcaseItemUI(${i})">✕</button>`;
+    return `<div class="showcase-slide">${media}${removeBtn}</div>`;
+  }).join('');
+
+  dots.innerHTML = showcaseItems.map((_,i)=>
+    `<button class="showcase-dot${i===showcaseIndex?' active':''}" onclick="goToShowcaseSlideUI(${i})" aria-label="Đến mục ${i+1}"></button>`
+  ).join('');
+
+  if(showcaseIndex >= showcaseItems.length) showcaseIndex = 0;
+  goToShowcaseSlide(showcaseIndex);
+}
+window.goToShowcaseSlideUI = function(i){ goToShowcaseSlide(i); };
+window.removeShowcaseItemUI = function(i){ removeShowcaseItem(i); };
+
+async function renderShowcase(){
+  showcaseItems = await loadShowcase();
+  showcaseIndex = 0;
+  renderShowcaseUI();
+}
+
+document.getElementById('showcasePrevBtn').addEventListener('click', ()=>goToShowcaseSlide(showcaseIndex-1));
+document.getElementById('showcaseNextBtn').addEventListener('click', ()=>goToShowcaseSlide(showcaseIndex+1));
+
+document.getElementById('showcaseAddImgBtn').addEventListener('click', ()=>{
+  if(!checkAdmin()) return;
+  document.getElementById('showcaseImgInput').click();
+});
+document.getElementById('showcaseAddVideoBtn').addEventListener('click', ()=>{
+  if(!checkAdmin()) return;
+  document.getElementById('showcaseVideoInput').click();
+});
+
+document.getElementById('showcaseImgInput').addEventListener('change', async e=>{
+  const file = e.target.files[0];
+  e.target.value = '';
+  if(!file) return;
+  showToast('Đang tải ảnh lên...');
+  try{
+    const {blob} = await compressImageToBlob(file, 1400, 0.82);
+    const url = await uploadToCloudinary(blob);
+    showcaseItems.push({type:'image', url});
+    const saved = await saveShowcase(showcaseItems);
+    if(saved){ showToast('Đã thêm ảnh.'); showcaseIndex = showcaseItems.length-1; renderShowcaseUI(); }
+  }catch(err){
+    console.error(err);
+    showToast('Lỗi tải ảnh lên: ' + (err && err.message ? err.message : 'không rõ nguyên nhân'));
+  }
+});
+
+document.getElementById('showcaseVideoInput').addEventListener('change', async e=>{
+  const file = e.target.files[0];
+  e.target.value = '';
+  if(!file) return;
+  if(file.size > 50*1024*1024){
+    showToast('Video quá lớn (>50MB), chọn video nhẹ hơn nhé.');
+    return;
+  }
+  showToast('Đang tải video lên, có thể mất chút thời gian...');
+  try{
+    const url = await uploadToCloudinary(file);
+    showcaseItems.push({type:'video', url});
+    const saved = await saveShowcase(showcaseItems);
+    if(saved){ showToast('Đã thêm video.'); showcaseIndex = showcaseItems.length-1; renderShowcaseUI(); }
+  }catch(err){
+    console.error(err);
+    showToast('Lỗi tải video lên: ' + (err && err.message ? err.message : 'không rõ nguyên nhân'));
+  }
+});
+
+// ---------------- CHAT / FEEDBACK CÔNG KHAI ----------------
+const CHAT_COLLECTION = 'feedbackChat';
+let chatUnsub = null;
+let chatMessagesCache = [];
+
+function formatChatTime(ts){
+  if(!ts) return '';
+  const d = new Date(ts);
+  const now = new Date();
+  const sameDay = d.toDateString() === now.toDateString();
+  const hm = d.toLocaleTimeString('vi-VN', {hour:'2-digit', minute:'2-digit'});
+  if(sameDay) return hm;
+  return d.toLocaleDateString('vi-VN', {day:'2-digit', month:'2-digit'}) + ' ' + hm;
+}
+
+function canChat(){
+  return isUserLoggedIn() || isAdminUnlocked();
+}
+
+function renderChatAccessUI(){
+  const inputRow = document.getElementById('chatInputRow');
+  const hint = document.getElementById('chatLoginHint');
+  if(!inputRow || !hint) return;
+  if(canChat()){
+    inputRow.style.display = 'flex';
+    hint.style.display = 'none';
+  } else {
+    inputRow.style.display = 'none';
+    hint.style.display = 'flex';
+  }
+}
+
+function renderChatMessages(){
+  const wrap = document.getElementById('chatMessages');
+  if(!wrap) return;
+  const admin = isAdminUnlocked();
+  const nearBottom = wrap.scrollHeight - wrap.scrollTop - wrap.clientHeight < 60;
+  wrap.innerHTML = chatMessagesCache.map(m=>{
+    const isAdminMsg = !!m.isAdmin;
+    const delBtn = admin ? `<button class="chat-msg-del" title="Xoá tin nhắn" onclick="deleteChatMessageUI('${m.id}')">✕</button>` : '';
+    return `
+      <div class="chat-msg${isAdminMsg?' chat-msg-admin':''}">
+        ${delBtn}
+        <div class="chat-msg-head">
+          <span class="chat-msg-name">${escapeHtml(m.displayName||'Ẩn danh')}${isAdminMsg?' 🔓':''}</span>
+          <span class="chat-msg-time">${formatChatTime(m.ts)}</span>
+        </div>
+        <div class="chat-msg-text">${escapeHtml(m.text||'')}</div>
+      </div>`;
+  }).join('');
+  if(nearBottom) wrap.scrollTop = wrap.scrollHeight;
+}
+
+function initChat(){
+  if(!db) return;
+  if(chatUnsub) return; // đã lắng nghe rồi, không cần gắn lại
+  try{
+    const q = query(collection(db, CHAT_COLLECTION), orderBy('ts', 'asc'), limit(200));
+    chatUnsub = onSnapshot(q, snap=>{
+      chatMessagesCache = snap.docs.map(d=>({id:d.id, ...d.data()}));
+      renderChatMessages();
+    }, err=>{
+      console.error('Lỗi lắng nghe chat:', err);
+    });
+  }catch(e){ console.error(e); }
+}
+
+async function sendChatMessage(){
+  const input = document.getElementById('chatInput');
+  const text = input.value.trim();
+  if(!text) return;
+  if(!canChat()){ showToast('Bạn cần đăng nhập để gửi tin nhắn.'); return; }
+  if(!db){ showToast('Chưa cấu hình Firebase.'); return; }
+  const admin = isAdminUnlocked();
+  const cur = getCurrentUser();
+  const displayName = admin ? 'Admin' : ((cur && (cur.displayName || cur.username)) || 'Ẩn danh');
+  const sendBtn = document.getElementById('chatSendBtn');
+  sendBtn.disabled = true;
+  input.value = '';
+  try{
+    await addDoc(collection(db, CHAT_COLLECTION), {
+      text: text.slice(0,500),
+      displayName,
+      username: admin ? 'admin' : ((cur && cur.username) || ''),
+      isAdmin: admin,
+      ts: Date.now()
+    });
+  }catch(e){
+    console.error(e);
+    showToast('Gửi tin nhắn lỗi: ' + (e && e.message ? e.message : 'không rõ nguyên nhân'));
+    input.value = text; // trả lại nội dung để người dùng không mất tin đã gõ
+  }finally{
+    sendBtn.disabled = false;
+    input.focus();
+  }
+}
+window.deleteChatMessageUI = async function(id){
+  if(!isAdminUnlocked()) return;
+  const ok = await askConfirm({title:'Xoá tin nhắn?', message:'Tin nhắn này sẽ bị xoá khỏi tường feedback.', okText:'Xoá', danger:true});
+  if(!ok) return;
+  try{ await deleteDoc(doc(db, CHAT_COLLECTION, id)); }
+  catch(e){ console.error(e); showToast('Lỗi xoá tin nhắn.'); }
+};
+
+document.getElementById('chatSendBtn').addEventListener('click', sendChatMessage);
+document.getElementById('chatInput').addEventListener('keydown', e=>{
+  if(e.key === 'Enter'){ e.preventDefault(); sendChatMessage(); }
+});
+document.getElementById('chatLoginPromptBtn').addEventListener('click', ()=>openUserAuthModal('login'));
+
 // ---------------- INIT ----------------
 (async function init(){
   // Nếu đang đăng nhập là khách hàng, đồng bộ lại số dư V-coin mới nhất từ Firestore
@@ -2058,4 +2389,7 @@ document.addEventListener('keydown', e=>{
   await renderProducts();
   await renderProfile();
   await renderPlaylistAdmin();
+  await renderShowcase();
+  renderChatAccessUI();
+  initChat();
 })();
