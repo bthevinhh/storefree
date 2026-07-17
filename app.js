@@ -104,7 +104,7 @@ function setChatOpen(open){
   btn.classList.toggle('active', open);
   if(open){
     const wrap = document.getElementById('chatMessages');
-    if(wrap) wrap.scrollTop = wrap.scrollHeight;
+    if(wrap){ wrap.scrollTop = wrap.scrollHeight; chatStickToBottom = true; }
   }
 }
 document.getElementById('chatToggleBtn').addEventListener('click', ()=>{
@@ -2357,6 +2357,8 @@ document.getElementById('showcaseVideoInput').addEventListener('change', async e
 const CHAT_COLLECTION = 'feedbackChat';
 let chatUnsub = null;
 let chatMessagesCache = [];
+let chatStickToBottom = true; // true = tự cuộn xuống cuối mỗi khi có tin mới
+let chatScrollListenerAttached = false;
 
 function formatChatTime(ts){
   if(!ts) return '';
@@ -2404,7 +2406,6 @@ function renderChatMessages(){
   if(!wrap) return;
   const admin = isAdminUnlocked();
   const cur = getCurrentUser();
-  const nearBottom = wrap.scrollHeight - wrap.scrollTop - wrap.clientHeight < 60;
   wrap.innerHTML = chatMessagesCache.map(m=>{
     const isAdminMsg = !!m.isAdmin;
     const isOwn = admin ? isAdminMsg : (!isAdminMsg && !!cur && !!m.username && m.username === cur.username);
@@ -2426,7 +2427,19 @@ function renderChatMessages(){
         <div class="chat-msg-text">${formattedText}</div>
       </div>`;
   }).join('');
-  if(nearBottom) wrap.scrollTop = wrap.scrollHeight;
+
+  if(!chatScrollListenerAttached){
+    chatScrollListenerAttached = true;
+    wrap.addEventListener('scroll', ()=>{
+      chatStickToBottom = wrap.scrollHeight - wrap.scrollTop - wrap.clientHeight < 60;
+    });
+  }
+
+  if(chatStickToBottom){
+    // requestAnimationFrame đợi trình duyệt vẽ xong nội dung mới rồi mới đo scrollHeight,
+    // tránh trường hợp cuộn hụt vì đo scrollHeight lúc DOM chưa kịp cập nhật xong.
+    requestAnimationFrame(()=>{ wrap.scrollTop = wrap.scrollHeight; });
+  }
 }
 
 function initChat(){
@@ -2455,6 +2468,7 @@ async function sendChatMessage(){
   const sendBtn = document.getElementById('chatSendBtn');
   sendBtn.disabled = true;
   input.value = '';
+  chatStickToBottom = true; // tin của chính mình -> luôn cuộn xuống để thấy ngay
   try{
     await addDoc(collection(db, CHAT_COLLECTION), {
       text: text.slice(0,500),
