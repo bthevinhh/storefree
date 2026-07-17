@@ -1,7 +1,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {
   getFirestore, collection, doc, setDoc, getDoc, getDocs, deleteDoc, updateDoc, increment,
-  addDoc, query, orderBy, limit, onSnapshot
+  addDoc, query, orderBy, limit, limitToLast, onSnapshot
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import {
   getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged
@@ -514,9 +514,9 @@ function renderAuthUI(){
   const cur = getCurrentUser();
   document.body.classList.toggle('admin-mode', admin);
   document.body.classList.toggle('user-mode', !admin && !!cur);
+  document.body.classList.toggle('filemgr-mode', canUploadFiles());
   if(typeof renderShowcaseUI === 'function' && document.getElementById('showcaseSection')) renderShowcaseUI();
   if(typeof renderChatAccessUI === 'function' && document.getElementById('chatPanel')) renderChatAccessUI();
-  if(typeof renderChatMessages === 'function' && document.getElementById('chatMessages')) renderChatMessages();
   if(typeof renderChatMessages === 'function' && document.getElementById('chatMessages')) renderChatMessages();
   if(admin){
     btn.textContent = '🔓 ' + (cur && cur.displayName ? cur.displayName : 'Admin') + ' · Thoát';
@@ -599,12 +599,13 @@ async function submitUserRegister(){
     const userDoc = {
       username, displayName, salt, passwordHash,
       vcoin: 0,
+      canManageFiles: false, // mặc định chưa có quyền upload/xoá file, Admin cấp riêng sau
       createdAt: Date.now()
     };
     const ok = await saveUserDoc(userDoc);
     btn.disabled = false;
     if(!ok) return;
-    setCurrentUser({username, displayName, vcoin: 0});
+    setCurrentUser({username, displayName, vcoin: 0, canManageFiles: false});
     renderAuthUI();
     closeUserAuthModal();
     showToast('Tạo tài khoản thành công! Chào mừng ' + displayName + '.');
@@ -693,7 +694,7 @@ async function submitUserLogin(){
       btn.disabled = false;
       return;
     }
-    setCurrentUser({username: userDoc.username, displayName: userDoc.displayName, vcoin: userDoc.vcoin||0});
+    setCurrentUser({username: userDoc.username, displayName: userDoc.displayName, vcoin: userDoc.vcoin||0, canManageFiles: !!userDoc.canManageFiles});
     renderAuthUI();
     closeUserAuthModal();
     btn.disabled = false;
@@ -1307,7 +1308,7 @@ document.getElementById('pCollection').addEventListener('change', e=>{
 });
 
 window.togglePin = async function(id){
-  if(!checkAdmin()) return;
+  if(!canUploadFiles()) return;
   const p = products.find(x=>x.id===id);
   if(!p) return;
   p.pinned = !p.pinned;
@@ -1319,7 +1320,7 @@ window.togglePin = async function(id){
 };
 
 window.startEdit = async function(id){
-  if(!checkAdmin()) return;
+  if(!canUploadFiles()) return;
   const p = products.find(x=>x.id===id);
   if(!p) return;
   editingId = id;
@@ -1341,7 +1342,7 @@ window.startEdit = async function(id){
   switchView('form');
 };
 document.getElementById('undoEditBtn').addEventListener('click', async ()=>{
-  if(!checkAdmin() || !editingId) return;
+  if(!canUploadFiles() || !editingId) return;
   const snap = await loadProductHistorySnapshot(editingId);
   if(!snap){ showToast('Không có bản lưu trước đó để hoàn tác.'); return; }
   const ok = await askConfirm({title:'Hoàn tác chỉnh sửa', message:'Khôi phục sản phẩm về phiên bản trước lần sửa gần nhất?', okText:'Hoàn tác'});
@@ -1358,7 +1359,7 @@ document.getElementById('undoEditBtn').addEventListener('click', async ()=>{
   }
 });
 window.deleteProduct = async function(id){
-  if(!checkAdmin()) return;
+  if(!canUploadFiles()) return;
   const ok = await askConfirm({title:'Xoá sản phẩm', message:'Xoá sản phẩm này? Hành động này không thể hoàn tác.', okText:'Xoá', danger:true});
   if(!ok) return;
   await removeProductDoc(id);
@@ -1400,9 +1401,124 @@ document.getElementById('loginBtn').addEventListener('click', async ()=>{
 function checkAdmin(){
   return isAdminUnlocked();
 }
+// canUploadFiles(): quyền quản lý sản phẩm (thêm/sửa/xoá/ghim) được mở rộng cho
+// cả Admin thật (Firebase Auth) LẪN người dùng thường được Admin cấp riêng quyền
+// này (field canManageFiles = true trong doc Firestore "users/{username}").
+function canUploadFiles(){
+  if(isAdminUnlocked()) return true;
+  const cur = getCurrentUser();
+  return !!(cur && cur.canManageFiles);
+}
+
+// ---------------- ADMIN: CẤP QUYỀN QUẢN LÝ FILE CHO NGƯỜI DÙNG ----------------
+// Cho phép Admin tra cứu 1 tài khoản người dùng thường theo username, rồi
+// cấp/thu hồi field "canManageFiles" trên doc Firestore "users/{username}".
+// LƯU Ý BẢO MẬT QUAN TRỌNG: checkAdmin() ở đây chỉ ẩn/hiện giao diện và chặn
+// ở phía client — đây KHÔNG phải là bảo mật thật sự. Ai đó rành kỹ thuật vẫn
+// có thể gọi thẳng updateDoc() từ Console (F12) để tự cấp quyền cho mình nếu
+// Firestore Rules không chặn ghi field này. Bạn BẮT BUỘC phải cập nhật
+// Firestore Security Rules — xem đoạn rule mẫu ở cuối file app.js (phần
+// "GHI CHÚ BẢO MẬT - FIRESTORE RULES CHO users/{username}").
+let filemgrLookupResultUser = null; // doc user đang hiển thị kết quả tra cứu, null nếu chưa tra cứu / không tìm thấy
+
+async function lookupFilemgrUser(){
+  const resultBox = document.getElementById('filemgrPermResult');
+  if(!checkAdmin()){
+    showToast('Chỉ Admin mới có quyền tra cứu.');
+    return;
+  }
+  const rawUsername = document.getElementById('filemgrLookupInput').value.trim();
+  const username = normalizeUsername(rawUsername);
+  if(!username){
+    filemgrLookupResultUser = null;
+    resultBox.style.display = 'block';
+    resultBox.innerHTML = `<div class="filemgr-perm-error">Vui lòng nhập tên đăng nhập.</div>`;
+    return;
+  }
+  const lookupBtn = document.getElementById('filemgrLookupBtn');
+  lookupBtn.disabled = true;
+  resultBox.style.display = 'block';
+  resultBox.innerHTML = `<div class="filemgr-perm-error" style="color:var(--muted);">Đang tra cứu...</div>`;
+  try{
+    const userDoc = await loadUserDoc(username);
+    lookupBtn.disabled = false;
+    if(!userDoc){
+      filemgrLookupResultUser = null;
+      resultBox.innerHTML = `<div class="filemgr-perm-error">Không tìm thấy tài khoản "${escapeHtml(username)}".</div>`;
+      return;
+    }
+    filemgrLookupResultUser = userDoc;
+    renderFilemgrLookupResult();
+  }catch(e){
+    console.error(e);
+    lookupBtn.disabled = false;
+    filemgrLookupResultUser = null;
+    resultBox.innerHTML = `<div class="filemgr-perm-error">Lỗi tra cứu: ${escapeHtml(e && e.message ? e.message : 'không rõ nguyên nhân')}</div>`;
+  }
+}
+
+function renderFilemgrLookupResult(){
+  const resultBox = document.getElementById('filemgrPermResult');
+  const u = filemgrLookupResultUser;
+  if(!u){ resultBox.style.display = 'none'; return; }
+  const granted = !!u.canManageFiles;
+  resultBox.style.display = 'block';
+  resultBox.innerHTML = `
+    <div class="filemgr-perm-result-row">
+      <div>
+        <div class="filemgr-perm-result-name">${escapeHtml(u.displayName || u.username)}</div>
+        <div class="filemgr-perm-result-username">@${escapeHtml(u.username)}</div>
+        <span class="filemgr-perm-status ${granted ? 'granted' : 'revoked'}">${granted ? '✓ Đã cấp quyền' : '✕ Chưa có quyền'}</span>
+      </div>
+      <button class="ghost-btn ${granted ? 'filemgr-perm-revoke-btn' : 'filemgr-perm-grant-btn'}" id="filemgrToggleBtn">${granted ? 'Thu hồi quyền' : 'Cấp quyền'}</button>
+    </div>
+  `;
+  document.getElementById('filemgrToggleBtn').addEventListener('click', toggleFilemgrPermission);
+}
+
+async function toggleFilemgrPermission(){
+  if(!checkAdmin()){
+    showToast('Chỉ Admin mới có quyền này.');
+    return;
+  }
+  const u = filemgrLookupResultUser;
+  if(!u) return;
+  const granting = !u.canManageFiles;
+  const ok = await askConfirm({
+    title: granting ? 'Cấp quyền quản lý file?' : 'Thu hồi quyền quản lý file?',
+    message: granting
+      ? `Cấp quyền thêm/sửa/xoá sản phẩm & file cho tài khoản "${u.username}"?`
+      : `Thu hồi quyền quản lý file của tài khoản "${u.username}"?`,
+    okText: granting ? 'Cấp quyền' : 'Thu hồi',
+    danger: !granting
+  });
+  if(!ok) return;
+  const btn = document.getElementById('filemgrToggleBtn');
+  if(btn) btn.disabled = true;
+  try{
+    await updateDoc(doc(db, 'users', u.username), {canManageFiles: granting});
+    filemgrLookupResultUser.canManageFiles = granting;
+    renderFilemgrLookupResult();
+    showToast(granting ? `Đã cấp quyền quản lý file cho ${u.username}.` : `Đã thu hồi quyền quản lý file của ${u.username}.`);
+    // Nếu vừa cấp/thu hồi quyền cho chính tài khoản đang đăng nhập trên máy này
+    // (VD Admin đang test bằng cùng trình duyệt) thì cập nhật lại session hiện tại luôn.
+    const cur = getCurrentUser();
+    if(cur && cur.username === u.username){
+      setCurrentUser({...cur, canManageFiles: granting});
+      renderAuthUI();
+    }
+  }catch(e){
+    console.error(e);
+    showToast('Lỗi cập nhật quyền: ' + (e && e.message ? e.message : 'không rõ nguyên nhân'));
+    if(btn) btn.disabled = false;
+  }
+}
+
+document.getElementById('filemgrLookupBtn').addEventListener('click', lookupFilemgrUser);
+document.getElementById('filemgrLookupInput').addEventListener('keydown', e=>{ if(e.key==='Enter') lookupFilemgrUser(); });
 
 document.getElementById('openAddBtn').addEventListener('click', ()=>{
-  if(!checkAdmin()) return;
+  if(!canUploadFiles()) return;
   editingId = null;
   pendingImageData = null;
   pendingImageBlob = null;
@@ -1442,6 +1558,7 @@ function isValidDateStr(s){
 }
 
 document.getElementById('saveProductBtn').addEventListener('click', async ()=>{
+  if(!canUploadFiles()){ showToast('Bạn không có quyền thêm/sửa sản phẩm.'); return; }
   const title = document.getElementById('pTitle').value.trim();
   const desc = document.getElementById('pDesc').value.trim();
   const link = document.getElementById('pLink').value.trim();
@@ -2230,6 +2347,8 @@ function goToShowcaseSlide(idx){
   const track = document.getElementById('showcaseTrack');
   if(track) track.style.transform = `translateX(-${showcaseIndex * 100}%)`;
   document.querySelectorAll('.showcase-dot').forEach((d,i)=>d.classList.toggle('active', i===showcaseIndex));
+  const counter = document.getElementById('showcaseCounter');
+  if(counter) counter.textContent = showcaseItems.length > 1 ? `${showcaseIndex+1} / ${showcaseItems.length}` : '';
   stopAllShowcaseVideos(showcaseIndex);
   const activeVideo = document.querySelector(`.showcase-slide video[data-idx="${showcaseIndex}"]`);
   if(activeVideo){ activeVideo.currentTime = 0; activeVideo.play().catch(()=>{}); }
@@ -2266,6 +2385,7 @@ function renderShowcaseUI(){
   if(showcaseItems.length === 0){
     track.innerHTML = `<div class="showcase-slide"><div class="showcase-slide-empty">Chưa có ảnh/video giới thiệu nào.<br>Bấm "+ Ảnh" hoặc "+ Video" bên dưới để thêm.</div></div>`;
     dots.innerHTML = '';
+    document.getElementById('showcaseCounter').textContent = '';
     document.getElementById('showcasePrevBtn').style.display = 'none';
     document.getElementById('showcaseNextBtn').style.display = 'none';
     return;
@@ -2277,7 +2397,7 @@ function renderShowcaseUI(){
   track.innerHTML = showcaseItems.map((it,i)=>{
     const media = it.type === 'video'
       ? `<video data-idx="${i}" src="${it.url}" muted playsinline controls${showcaseItems.length===1?' loop':''}></video>`
-      : `<img src="${it.url}" alt="" loading="lazy">`;
+      : `<div class="showcase-img-bg" style="background-image:url('${it.url}')"></div><img src="${it.url}" alt="" loading="lazy">`;
     const removeBtn = `<button class="showcase-slide-remove admin-only" title="Xoá" onclick="removeShowcaseItemUI(${i})">✕</button>`;
     return `<div class="showcase-slide">${media}${removeBtn}</div>`;
   }).join('');
@@ -2403,9 +2523,20 @@ function linkifyUrls(escapedText){
 
 function renderChatMessages(){
   const wrap = document.getElementById('chatMessages');
-  if(!wrap) return;
+  if(!wrap){
+    console.warn('[chat] Không tìm thấy #chatMessages trong DOM');
+    return;
+  }
   const admin = isAdminUnlocked();
   const cur = getCurrentUser();
+
+  console.log(`[chat] Đang render ${chatMessagesCache.length} tin nhắn`);
+
+  if(chatMessagesCache.length === 0){
+    wrap.innerHTML = '<div style="color:var(--muted);font-size:12.5px;text-align:center;padding:20px 0;">Chưa có tin nhắn nào. Hãy là người đầu tiên!</div>';
+    return;
+  }
+
   wrap.innerHTML = chatMessagesCache.map(m=>{
     const isAdminMsg = !!m.isAdmin;
     const isOwn = admin ? isAdminMsg : (!isAdminMsg && !!cur && !!m.username && m.username === cur.username);
@@ -2436,24 +2567,50 @@ function renderChatMessages(){
   }
 
   if(chatStickToBottom){
-    // requestAnimationFrame đợi trình duyệt vẽ xong nội dung mới rồi mới đo scrollHeight,
-    // tránh trường hợp cuộn hụt vì đo scrollHeight lúc DOM chưa kịp cập nhật xong.
-    requestAnimationFrame(()=>{ wrap.scrollTop = wrap.scrollHeight; });
+    // Dùng setTimeout thay vì requestAnimationFrame: đảm bảo chắc chắn DOM đã
+    // render/reflow xong (kể cả ảnh/emoji chưa load kịp) trước khi đo scrollHeight,
+    // tránh trường hợp cuộn hụt không xuống hết cuối khung chat.
+    setTimeout(()=>{ wrap.scrollTop = wrap.scrollHeight; }, 50);
   }
 }
 
 function initChat(){
-  if(!db) return;
-  if(chatUnsub) return; // đã lắng nghe rồi, không cần gắn lại
+  if(!db){
+    console.error('[chat] Firestore chưa được khởi tạo, không thể lắng nghe chat.');
+    return;
+  }
+
+  if(chatUnsub){
+    console.log('[chat] Listener đã tồn tại, hủy listener cũ trước khi gắn lại...');
+    try{
+      chatUnsub();
+    }catch(e){
+      console.warn('[chat] Lỗi khi hủy listener cũ:', e);
+    }
+    chatUnsub = null;
+  }
+
   try{
-    const q = query(collection(db, CHAT_COLLECTION), orderBy('ts', 'asc'), limit(200));
+    console.log('[chat] Bắt đầu lắng nghe chat từ Firestore...');
+    // QUAN TRỌNG: dùng limitToLast (không dùng limit) kết hợp orderBy('ts','asc')
+    // để lấy 200 tin nhắn MỚI NHẤT nhưng vẫn trả về theo thứ tự tăng dần (cũ -> mới).
+    // Nếu dùng limit(200) như trước đây, khi collection có hơn 200 tin nhắn thì
+    // Firestore sẽ luôn trả về 200 tin CŨ NHẤT và mọi tin nhắn mới gửi sau đó sẽ
+    // không bao giờ lọt vào kết quả -> UI đứng yên, không hiện tin nhắn mới.
+    const q = query(collection(db, CHAT_COLLECTION), orderBy('ts', 'asc'), limitToLast(200));
     chatUnsub = onSnapshot(q, snap=>{
+      console.log(`[chat] Nhận được ${snap.docs.length} tin nhắn từ Firestore`);
       chatMessagesCache = snap.docs.map(d=>({id:d.id, ...d.data()}));
       renderChatMessages();
     }, err=>{
-      console.error('Lỗi lắng nghe chat:', err);
+      console.error('[chat] Lỗi lắng nghe chat:', err);
+      chatUnsub = null; // cho phép thử khởi tạo lại lần sau
+      showToast('Lỗi kết nối chat: ' + (err.message || 'không rõ nguyên nhân'));
     });
-  }catch(e){ console.error(e); }
+  }catch(e){
+    console.error('[chat] Lỗi khởi tạo chat:', e);
+    showToast('Không thể khởi tạo chat: ' + (e.message || 'không rõ nguyên nhân'));
+  }
 }
 
 async function sendChatMessage(){
@@ -2508,7 +2665,7 @@ document.getElementById('chatLoginPromptBtn').addEventListener('click', ()=>open
     const cur = getCurrentUser();
     const freshUser = await loadUserDoc(cur.username);
     if(freshUser){
-      setCurrentUser({username: freshUser.username, displayName: freshUser.displayName, vcoin: freshUser.vcoin||0});
+      setCurrentUser({username: freshUser.username, displayName: freshUser.displayName, vcoin: freshUser.vcoin||0, canManageFiles: !!freshUser.canManageFiles});
     }
   }
   renderAuthUI();
@@ -2522,3 +2679,51 @@ document.getElementById('chatLoginPromptBtn').addEventListener('click', ()=>open
   renderChatAccessUI();
   initChat();
 })();
+/* =====================================================================
+GHI CHÚ BẢO MẬT - FIRESTORE RULES CHO users/{username} (BẮT BUỘC ĐỌC)
+=========================================================================
+Card "Cấp quyền quản lý file" (mục Hồ sơ, chỉ Admin thấy) cho phép Admin
+ghi field "canManageFiles" vào doc Firestore "users/{username}". Kiểm tra
+checkAdmin() trong app.js CHỈ ẩn/hiện giao diện và chặn ở phía trình
+duyệt — đây không phải bảo mật thật. Nếu Firestore Rules đang mở quyền
+ghi "users/*" cho bất kỳ ai, một người dùng thường (không phải Admin)
+vẫn có thể mở Console (F12) và tự gọi updateDoc() để tự cấp quyền
+"canManageFiles" cho chính mình.
+
+Vì vậy, bạn BẮT BUỘC phải cập nhật Firestore Security Rules (Firebase
+Console > Firestore Database > Rules) để chỉ những UID có trong
+collection "admins" mới được ghi field "canManageFiles" (hoặc ghi bất kỳ
+field nào) vào "users/{username}". Người dùng thường chỉ nên được phép
+tự đọc/sửa MỘT VÀI field an toàn trên chính doc của họ (ví dụ đổi mật
+khẩu), không được tự sửa "canManageFiles" hay "vcoin".
+
+Đoạn rule mẫu bên dưới — bạn cần thay thế đoạn match "users/{username}"
+đang có trong Rules thật của dự án bằng đoạn này (mình không truy cập
+được Rules thật của bạn nên chỉ đưa mẫu tham khảo, hãy kiểm tra kỹ các
+collection khác trước khi publish):
+
+    match /users/{username} {
+      // Ai cũng đọc được để phục vụ đăng nhập / kiểm tra trùng username.
+      // Nếu muốn kín hơn, có thể giới hạn read chỉ cho chính user đó + admin,
+      // nhưng khi đó cần đổi cách kiểm tra "username đã tồn tại" lúc đăng ký.
+      allow read: if true;
+
+      // Tạo tài khoản mới (đăng ký): cho phép tạo nếu chưa tồn tại,
+      // và canManageFiles bắt buộc phải là false lúc tạo mới.
+      allow create: if request.resource.data.canManageFiles == false;
+
+      // Chỉ Admin (UID có trong collection "admins") mới được sửa
+      // canManageFiles hoặc vcoin. Việc đổi các field khác (vd đổi mật khẩu)
+      // cần rule riêng chặt chẽ hơn nếu bạn muốn cho user tự đổi.
+      allow update: if exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+                    || (!('canManageFiles' in request.resource.data.diff(resource.data).affectedKeys())
+                        && !('vcoin' in request.resource.data.diff(resource.data).affectedKeys()));
+
+      allow delete: if exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+Sau khi dán/chỉnh Rules xong, nhớ bấm "Publish" trong Firebase Console.
+Có thể dùng tab "Rules Playground" của Firebase để test thử trước khi
+publish thật, đảm bảo user thường bị chặn ghi "canManageFiles" nhưng
+Admin vẫn ghi được bình thường.
+========================================================================= */

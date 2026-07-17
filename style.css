@@ -81,7 +81,7 @@ header{
 }
 .brand-title span{color:var(--amber);}
 .header-right{display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
-nav{display:flex;gap:4px;background:rgba(255,255,255,.04);padding:5px;border-radius:12px;border:1px solid rgba(255,255,255,.06);}
+nav{display:flex;flex-wrap:wrap;gap:4px;background:rgba(255,255,255,.04);padding:5px;border-radius:12px;border:1px solid rgba(255,255,255,.06);}
 nav button{
   font-family:'Space Mono',monospace;
   font-size:12px;
@@ -354,6 +354,13 @@ body.admin-mode .admin-only{display:revert !important;}
 body.admin-mode .card-admin-row{display:flex;}
 .user-only{display:none !important;}
 body.user-mode .user-only{display:revert !important;}
+/* filemgr-mode: dành riêng cho quyền quản lý sản phẩm (thêm/sửa/xoá/ghim),
+   áp dụng cho cả Admin thật lẫn user thường được cấp quyền canManageFiles.
+   Chỉ mở .filemgr-only và .card-admin-row, KHÔNG mở toàn bộ .admin-only
+   (dashboard, playlist, showcase... vẫn chỉ dành riêng cho Admin thật). */
+.filemgr-only{display:none !important;}
+body.filemgr-mode .filemgr-only{display:revert !important;}
+body.filemgr-mode .card-admin-row{display:flex;}
 
 /* ---------- V-COIN ---------- */
 .vcoin-badge{
@@ -807,7 +814,7 @@ body.admin-mode .playlist-row-actions{display:flex;}
   .grid{gap:16px;}
   .showcase-carousel{aspect-ratio:16/10;max-height:400px;}
   .dashboard-stats-row{gap:10px;}
-  .profile-card,.form-card,.playlist-card,.dashboard-card,.vcoin-card{max-width:100%;}
+  .profile-card,.form-card,.playlist-card,.dashboard-card,.vcoin-card,.filemgr-perm-card{max-width:100%;}
   .bulk-bar{top:74px;}
   /* Chống iOS tự zoom vào ô nhập liệu khi font-size < 16px */
   .search-input,
@@ -1020,6 +1027,44 @@ body.bulk-mode .parcel{cursor:pointer;}
 .dashboard-top-views{font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);}
 .dashboard-actions-row{display:flex;gap:10px;margin-top:20px;flex-wrap:wrap;}
 
+/* ---------- CẤP QUYỀN QUẢN LÝ FILE (admin) ---------- */
+.filemgr-perm-card{
+  background:var(--crate);border:1px solid rgba(255,255,255,.08);
+  border-radius:22px;padding:28px 30px;max-width:640px;margin:0 auto 20px;
+  box-shadow:0 24px 60px -24px rgba(0,0,0,.6);
+}
+.filemgr-perm-card h3{font-size:18px;margin-bottom:8px;}
+.filemgr-perm-desc{color:var(--muted);font-size:13px;line-height:1.6;margin-bottom:18px;}
+.filemgr-perm-search-row{display:flex;gap:10px;}
+.filemgr-perm-search-row input[type=text]{
+  flex:1;min-width:0;background:rgba(0,0,0,.22);border:1.5px solid var(--crate-line);
+  color:var(--text-light);padding:11px 14px;border-radius:10px;font-family:'Inter',sans-serif;font-size:14px;
+  transition:border-color .15s, box-shadow .15s;
+}
+.filemgr-perm-search-row input[type=text]:focus{
+  outline:none;border-color:var(--violet);box-shadow:0 0 0 3px rgba(124,108,240,.18);
+}
+.filemgr-perm-search-row .ghost-btn{flex:0 0 auto;}
+.filemgr-perm-result{
+  margin-top:16px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);
+  border-radius:14px;padding:16px 18px;
+}
+.filemgr-perm-result-row{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;}
+.filemgr-perm-result-name{font-weight:600;font-size:14.5px;}
+.filemgr-perm-result-username{font-family:'Space Mono',monospace;font-size:11.5px;color:var(--muted);margin-top:2px;}
+.filemgr-perm-status{
+  display:inline-flex;align-items:center;gap:6px;
+  font-family:'Space Mono',monospace;font-size:10.5px;letter-spacing:.04em;text-transform:uppercase;font-weight:700;
+  padding:5px 12px;border-radius:50px;margin-top:8px;
+}
+.filemgr-perm-status.granted{background:rgba(90,200,140,.15);color:#5ac88c;}
+.filemgr-perm-status.revoked{background:rgba(255,255,255,.06);color:var(--muted);}
+.filemgr-perm-error{color:var(--stamp);font-size:13px;}
+.filemgr-perm-grant-btn{background:var(--violet);border-color:var(--violet);color:#fff;}
+.filemgr-perm-grant-btn:hover{background:#6a5be0;border-color:#6a5be0;color:#fff;}
+.filemgr-perm-revoke-btn{background:rgba(232,92,65,.14);border-color:rgba(232,92,65,.4);color:var(--stamp);}
+.filemgr-perm-revoke-btn:hover{background:var(--stamp);border-color:var(--stamp);color:#fff;}
+
 /* ---------- SCHEDULE FIELDS ---------- */
 .schedule-row{display:flex;gap:10px;}
 .schedule-row > div{flex:1;}
@@ -1045,6 +1090,11 @@ body.bulk-mode .parcel{cursor:pointer;}
   aspect-ratio:16/8;
   max-height:460px;
 }
+.showcase-carousel::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:84px;
+  background:linear-gradient(180deg, rgba(10,8,14,.55), transparent);
+  z-index:3;pointer-events:none;
+}
 .showcase-track{
   display:flex;
   height:100%;
@@ -1055,9 +1105,22 @@ body.bulk-mode .parcel{cursor:pointer;}
   width:100%;height:100%;
   position:relative;
   background:#000;
+  overflow:hidden;
 }
-.showcase-slide img, .showcase-slide video{
-  width:100%;height:100%;object-fit:cover;display:block;
+/* Ảnh nền mờ lấp đầy khung + ảnh gốc hiển thị trọn vẹn không bị cắt (contain) */
+.showcase-img-bg{
+  position:absolute;inset:0;
+  background-size:cover;background-position:center;
+  filter:blur(30px) brightness(.55) saturate(1.25);
+  transform:scale(1.15);
+}
+.showcase-slide img{
+  position:relative;z-index:1;
+  width:100%;height:100%;object-fit:contain;display:block;
+}
+.showcase-slide video{
+  position:relative;z-index:1;
+  width:100%;height:100%;object-fit:contain;background:#000;display:block;
 }
 .showcase-slide-empty{
   display:flex;align-items:center;justify-content:center;
@@ -1087,6 +1150,12 @@ body.bulk-mode .parcel{cursor:pointer;}
 .showcase-nav:hover{background:var(--amber);color:var(--text-dark);border-color:var(--amber);}
 .showcase-nav.prev{left:14px;}
 .showcase-nav.next{right:14px;}
+.showcase-counter{
+  position:absolute;bottom:14px;left:14px;z-index:3;
+  font-family:'Space Mono',monospace;font-size:11px;font-weight:700;letter-spacing:.03em;
+  background:rgba(19,16,25,.6);color:#fff;border:1px solid rgba(255,255,255,.15);
+  padding:5px 11px;border-radius:50px;backdrop-filter:blur(4px);
+}
 .showcase-dots{
   position:absolute;bottom:14px;left:0;right:0;
   display:flex;justify-content:center;gap:7px;z-index:3;
@@ -1097,9 +1166,9 @@ body.bulk-mode .parcel{cursor:pointer;}
   transition:.18s var(--ease);
 }
 .showcase-dot.active{background:var(--amber);width:22px;border-radius:5px;}
-/* Nút Admin nổi ở góc trên-phải khung carousel, luôn thấy không cần cuộn */
+/* Nút Admin (+ Ảnh / + Video) đặt góc trên-TRÁI để không đè lên nút xoá (góc trên-phải) */
 .showcase-admin-overlay{
-  position:absolute;top:14px;right:14px;z-index:4;
+  position:absolute;top:14px;left:14px;z-index:4;
   gap:8px;
 }
 body.admin-mode .showcase-admin-overlay{display:flex !important;}
