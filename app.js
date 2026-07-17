@@ -95,91 +95,6 @@ document.querySelectorAll('.tab-btn').forEach(b=>{
   b.addEventListener('click', ()=>switchView(b.dataset.view));
 });
 
-// ---------------- CHAT POPUP TOGGLE (kiểu Messenger) ----------------
-function setChatOpen(open){
-  const panel = document.getElementById('chatPanel');
-  const btn = document.getElementById('chatToggleBtn');
-  if(!panel || !btn) return;
-  panel.classList.toggle('open', open);
-  btn.classList.toggle('active', open);
-  if(open){
-    const wrap = document.getElementById('chatMessages');
-    if(wrap) wrap.scrollTop = wrap.scrollHeight;
-  }
-}
-document.getElementById('chatToggleBtn').addEventListener('click', ()=>{
-  const panel = document.getElementById('chatPanel');
-  setChatOpen(!panel.classList.contains('open'));
-});
-document.getElementById('chatPopupCloseBtn').addEventListener('click', ()=>setChatOpen(false));
-
-// ---------------- CHAT POPUP RESIZE (kéo góc trên-trái để chỉnh to/nhỏ) ----------------
-(function initChatResize(){
-  const panel = document.getElementById('chatPanel');
-  const handle = document.getElementById('chatResizeHandle');
-  if(!panel || !handle) return;
-
-  let startX=0, startY=0, startW=0, startH=0, dragging=false;
-
-  function clampSize(w,h){
-    const minW = 280, minH = 320;
-    const maxW = window.innerWidth - 24;
-    const maxH = window.innerHeight - 24;
-    return {
-      w: Math.min(Math.max(w, minW), maxW),
-      h: Math.min(Math.max(h, minH), maxH)
-    };
-  }
-
-  function onMove(clientX, clientY){
-    const dx = startX - clientX; // kéo sang trái -> rộng hơn
-    const dy = startY - clientY; // kéo lên trên -> cao hơn
-    const { w, h } = clampSize(startW + dx, startH + dy);
-    panel.style.width = w + 'px';
-    panel.style.height = h + 'px';
-  }
-
-  function stopDrag(){
-    dragging = false;
-    panel.classList.remove('resizing');
-    document.body.style.userSelect = '';
-    window.removeEventListener('mousemove', onMouseMove);
-    window.removeEventListener('mouseup', onMouseUp);
-    window.removeEventListener('touchmove', onTouchMove);
-    window.removeEventListener('touchend', stopDrag);
-  }
-  function onMouseMove(e){ if(dragging) onMove(e.clientX, e.clientY); }
-  function onMouseUp(){ stopDrag(); }
-  function onTouchMove(e){
-    if(!dragging) return;
-    const t = e.touches[0];
-    if(t){ onMove(t.clientX, t.clientY); e.preventDefault(); }
-  }
-
-  function startDrag(clientX, clientY){
-    dragging = true;
-    startX = clientX; startY = clientY;
-    const rect = panel.getBoundingClientRect();
-    startW = rect.width; startH = rect.height;
-    panel.classList.add('resizing');
-    document.body.style.userSelect = 'none';
-  }
-
-  handle.addEventListener('mousedown', (e)=>{
-    e.preventDefault();
-    startDrag(e.clientX, e.clientY);
-    window.addEventListener('mousemove', onMouseMove);
-    window.addEventListener('mouseup', onMouseUp);
-  });
-  handle.addEventListener('touchstart', (e)=>{
-    const t = e.touches[0];
-    if(!t) return;
-    startDrag(t.clientX, t.clientY);
-    window.addEventListener('touchmove', onTouchMove, {passive:false});
-    window.addEventListener('touchend', stopDrag);
-  }, {passive:true});
-})();
-
 // ---------------- MODAL CONFIRM / PROMPT (thay thế confirm()/prompt() gốc của trình duyệt) ----------------
 function askConfirm({title='Xác nhận', message='Bạn có chắc chắn không?', okText='Đồng ý', danger=false} = {}){
   return new Promise(resolve=>{
@@ -516,7 +431,6 @@ function renderAuthUI(){
   document.body.classList.toggle('user-mode', !admin && !!cur);
   if(typeof renderShowcaseUI === 'function' && document.getElementById('showcaseSection')) renderShowcaseUI();
   if(typeof renderChatAccessUI === 'function' && document.getElementById('chatPanel')) renderChatAccessUI();
-  if(typeof renderChatMessages === 'function' && document.getElementById('chatMessages')) renderChatMessages();
   if(typeof renderChatMessages === 'function' && document.getElementById('chatMessages')) renderChatMessages();
   if(admin){
     btn.textContent = '🔓 ' + (cur && cur.displayName ? cur.displayName : 'Admin') + ' · Thoát';
@@ -2232,7 +2146,7 @@ function goToShowcaseSlide(idx){
   document.querySelectorAll('.showcase-dot').forEach((d,i)=>d.classList.toggle('active', i===showcaseIndex));
   stopAllShowcaseVideos(showcaseIndex);
   const activeVideo = document.querySelector(`.showcase-slide video[data-idx="${showcaseIndex}"]`);
-  if(activeVideo){ activeVideo.currentTime = 0; activeVideo.play().catch(()=>{}); }
+  if(activeVideo){ activeVideo.play().catch(()=>{}); }
   resetShowcaseAutoplay();
 }
 function resetShowcaseAutoplay(){
@@ -2276,7 +2190,7 @@ function renderShowcaseUI(){
 
   track.innerHTML = showcaseItems.map((it,i)=>{
     const media = it.type === 'video'
-      ? `<video data-idx="${i}" src="${it.url}" muted playsinline controls${showcaseItems.length===1?' loop':''}></video>`
+      ? `<video data-idx="${i}" src="${it.url}" muted loop playsinline controls></video>`
       : `<img src="${it.url}" alt="" loading="lazy">`;
     const removeBtn = `<button class="showcase-slide-remove admin-only" title="Xoá" onclick="removeShowcaseItemUI(${i})">✕</button>`;
     return `<div class="showcase-slide">${media}${removeBtn}</div>`;
@@ -2285,12 +2199,6 @@ function renderShowcaseUI(){
   dots.innerHTML = showcaseItems.map((_,i)=>
     `<button class="showcase-dot${i===showcaseIndex?' active':''}" onclick="goToShowcaseSlideUI(${i})" aria-label="Đến mục ${i+1}"></button>`
   ).join('');
-
-  track.querySelectorAll('video').forEach(v=>{
-    v.addEventListener('ended', ()=>{
-      if(showcaseItems.length > 1) goToShowcaseSlide(showcaseIndex+1);
-    });
-  });
 
   if(showcaseIndex >= showcaseItems.length) showcaseIndex = 0;
   goToShowcaseSlide(showcaseIndex);
@@ -2385,24 +2293,33 @@ function renderChatAccessUI(){
   }
 }
 
+function highlightMentions(escapedText){
+  // escapedText đã qua escapeHtml() -> an toàn để chèn thêm span mà không lo XSS
+  return escapedText.replace(/(^|\s)(@[^\s]+)/g, '$1<span class="chat-mention">$2</span>');
+}
+
 function renderChatMessages(){
   const wrap = document.getElementById('chatMessages');
   if(!wrap) return;
   const admin = isAdminUnlocked();
-  const cur = getCurrentUser();
   const nearBottom = wrap.scrollHeight - wrap.scrollTop - wrap.clientHeight < 60;
   wrap.innerHTML = chatMessagesCache.map(m=>{
     const isAdminMsg = !!m.isAdmin;
-    const isOwn = admin ? isAdminMsg : (!isAdminMsg && !!cur && !!m.username && m.username === cur.username);
     const delBtn = admin ? `<button class="chat-msg-del" title="Xoá tin nhắn" onclick="deleteChatMessageUI('${m.id}')">✕</button>` : '';
+    const replyHtml = m.replyTo ? `
+        <div class="chat-msg-reply">
+          <span class="chat-msg-reply-name">${escapeHtml(m.replyTo.displayName||'Ẩn danh')}</span>
+          <span class="chat-msg-reply-text">${escapeHtml(m.replyTo.text||'')}</span>
+        </div>` : '';
     return `
-      <div class="chat-msg${isAdminMsg?' chat-msg-admin':''}${isOwn?' chat-msg-own':' chat-msg-other'}">
+      <div class="chat-msg${isAdminMsg?' chat-msg-admin':''}">
         ${delBtn}
         <div class="chat-msg-head">
           <span class="chat-msg-name">${escapeHtml(m.displayName||'Ẩn danh')}${isAdminMsg?' 🔓':''}</span>
           <span class="chat-msg-time">${formatChatTime(m.ts)}</span>
         </div>
-        <div class="chat-msg-text">${escapeHtml(m.text||'')}</div>
+        ${replyHtml}
+        <div class="chat-msg-text">${highlightMentions(escapeHtml(m.text||''))}</div>
       </div>`;
   }).join('');
   if(nearBottom) wrap.scrollTop = wrap.scrollHeight;

@@ -17,7 +17,6 @@
     <nav>
       <button class="tab-btn active" data-view="home">Trang chủ</button>
       <button class="tab-btn" data-view="profile">Hồ sơ</button>
-      <button class="chat-toggle-btn" id="chatToggleBtn" title="Chat" aria-label="Mở chat">Chat</button>
       <button class="admin-lock-btn" id="loginBtn">👤 Đăng nhập</button>
     </nav>
   </div>
@@ -36,6 +35,18 @@
           <div class="showcase-admin-overlay admin-only" id="showcaseAdminBar">
             <button class="showcase-admin-btn" id="showcaseAddImgBtn">+ Ảnh</button>
             <button class="showcase-admin-btn" id="showcaseAddVideoBtn">+ Video</button>
+          </div>
+        </div>
+        <div class="chat-panel" id="chatPanel">
+          <div class="chat-header">💬 Feedback &amp; Nhắn tin</div>
+          <div class="chat-messages" id="chatMessages"></div>
+          <div class="chat-input-row" id="chatInputRow" style="display:none;">
+            <input type="text" id="chatInput" placeholder="Nhập tin nhắn hoặc feedback..." maxlength="500" autocomplete="off">
+            <button class="chat-send-btn" id="chatSendBtn">Gửi</button>
+          </div>
+          <div class="chat-login-hint" id="chatLoginHint" style="display:none;">
+            <span>Đăng nhập để gửi tin nhắn/feedback</span>
+            <button class="mini-btn" id="chatLoginPromptBtn">Đăng nhập</button>
           </div>
         </div>
       </div>
@@ -364,29 +375,6 @@
       <button class="confirm-btn-cancel" id="confirmCancelBtn">Huỷ</button>
       <button class="confirm-btn-ok" id="confirmOkBtn">Đồng ý</button>
     </div>
-  </div>
-</div>
-
-<div class="chat-popup" id="chatPanel">
-  <div class="chat-resize-handle" id="chatResizeHandle"></div>
-  <div class="chat-header">
-    <div class="chat-header-id">
-      <span class="chat-header-avatar">💬</span>
-      <span class="chat-header-text">
-        <span class="chat-header-title">Feedback &amp; Nhắn tin</span>
-        <span class="chat-header-status"><i></i>Đang hoạt động</span>
-      </span>
-    </div>
-    <button class="chat-popup-close" id="chatPopupCloseBtn" aria-label="Đóng chat">✕</button>
-  </div>
-  <div class="chat-messages" id="chatMessages"></div>
-  <div class="chat-input-row" id="chatInputRow" style="display:none;">
-    <input type="text" id="chatInput" placeholder="Nhập tin nhắn hoặc feedback..." maxlength="500" autocomplete="off">
-    <button class="chat-send-btn" id="chatSendBtn">Gửi</button>
-  </div>
-  <div class="chat-login-hint" id="chatLoginHint" style="display:none;">
-    <span>Đăng nhập để gửi tin nhắn/feedback</span>
-    <button class="mini-btn" id="chatLoginPromptBtn">Đăng nhập</button>
   </div>
 </div>
 
