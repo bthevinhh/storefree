@@ -17,6 +17,7 @@
 *{box-sizing:border-box;}
 ::selection{background:var(--amber);color:var(--text-dark);}
 html{scroll-behavior:smooth;}
+html,body{overflow-x:hidden;}
 body{
   margin:0;
   background:
@@ -26,7 +27,9 @@ body{
   color:var(--text-light);
   font-family:'Inter',sans-serif;
   min-height:100vh;
+  min-height:100dvh;
   -webkit-font-smoothing:antialiased;
+  -webkit-tap-highlight-color:transparent;
 }
 a{color:inherit;}
 .label{
@@ -43,6 +46,12 @@ h1,h2,h3{
   letter-spacing:-.01em;
 }
 button{font-family:inherit;}
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, [tabindex]:focus-visible{
+  outline:2px solid var(--amber);outline-offset:2px;
+}
+@media (prefers-reduced-motion:reduce){
+  *{animation-duration:.001ms !important;animation-iteration-count:1 !important;transition-duration:.001ms !important;scroll-behavior:auto !important;}
+}
 
 /* ---------- HEADER ---------- */
 header{
@@ -267,7 +276,7 @@ main{max-width:1140px;margin:0 auto;padding:44px 32px 100px;}
 
 .grid{
   display:grid;
-  grid-template-columns:repeat(auto-fill,minmax(340px,1fr));
+  grid-template-columns:repeat(auto-fill,minmax(min(340px,100%),1fr));
   gap:20px;
 }
 .empty-state{
@@ -335,8 +344,11 @@ main{max-width:1140px;margin:0 auto;padding:44px 32px 100px;}
 .stamp-btn:hover{background:var(--stamp);color:#fff;}
 .stamp-btn:hover::after{transform:translateX(3px);}
 .stamp-btn:active{transform:scale(.95);}
-.card-admin-row{display:none;gap:8px;margin-top:10px;opacity:.55;transition:opacity .2s;}
-.parcel:hover .card-admin-row{opacity:1;}
+.card-admin-row{display:none;gap:8px;margin-top:10px;opacity:1;transition:opacity .2s;flex-wrap:wrap;}
+@media (hover:hover) and (pointer:fine){
+  .card-admin-row{opacity:.55;}
+  .parcel:hover .card-admin-row{opacity:1;}
+}
 .admin-only{display:none !important;}
 body.admin-mode .admin-only{display:revert !important;}
 body.admin-mode .card-admin-row{display:flex;}
@@ -517,7 +529,7 @@ body.user-mode .user-only{display:revert !important;}
 
 /* ---------- MUSIC PLAYER (mini player) ---------- */
 .player-bar{
-  position:fixed;bottom:26px;right:26px;z-index:40;
+  position:fixed;bottom:calc(26px + env(safe-area-inset-bottom));right:calc(26px + env(safe-area-inset-right));z-index:40;
   width:320px;max-width:calc(100vw - 32px);
   background:linear-gradient(160deg, rgba(30,25,41,.88), rgba(19,16,25,.88));
   backdrop-filter:blur(18px) saturate(160%);
@@ -788,6 +800,25 @@ body.admin-mode .playlist-row-actions{display:flex;}
   font-size:11.5px;font-weight:600;padding:7px 8px;color:var(--text-dark);
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
 }
+/* ---------- TABLET (≤768px) ---------- */
+@media (max-width:768px){
+  header{padding:18px 22px;}
+  main{padding:36px 22px 96px;}
+  .grid{gap:16px;}
+  .showcase-carousel{aspect-ratio:16/10;max-height:400px;}
+  .dashboard-stats-row{gap:10px;}
+  .profile-card,.form-card,.playlist-card,.dashboard-card,.vcoin-card{max-width:100%;}
+  .bulk-bar{top:74px;}
+  /* Chống iOS tự zoom vào ô nhập liệu khi font-size < 16px */
+  .search-input,
+  .form-card input[type=text], .form-card input[type=url], .form-card input[type=password], .form-card textarea, .form-card select,
+  .auth-form input, .confirm-box input[type=text],
+  .chat-input-row input,
+  .sort-row select, .bulk-bar select{
+    font-size:16px;
+  }
+}
+
 @media (max-width:560px){
   .product-modal{flex-direction:column;max-height:92vh;}
   .product-modal-img-wrap{width:100%;flex:0 0 auto;aspect-ratio:16/10;}
@@ -950,7 +981,8 @@ body.bulk-mode .parcel{cursor:pointer;}
 
 /* ---------- TOAST ---------- */
 .toast{
-  position:fixed;bottom:26px;left:50%;transform:translateX(-50%) translateY(10px);
+  position:fixed;bottom:calc(26px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%) translateY(10px);
+  max-width:calc(100vw - 32px);
   background:var(--text-light);color:var(--text-dark);
   font-family:'Space Mono',monospace;font-size:12px;letter-spacing:.04em;font-weight:700;
   padding:12px 22px;border-radius:50px;z-index:60;
@@ -1082,8 +1114,8 @@ body.admin-mode .showcase-admin-overlay{display:flex !important;}
 /* ---------- CHAT POPUP (feedback + nhắn tin, kiểu Messenger) ---------- */
 .chat-popup{
   position:fixed;
-  right:24px;
-  bottom:24px;
+  right:calc(24px + env(safe-area-inset-right));
+  bottom:calc(24px + env(safe-area-inset-bottom));
   z-index:60;
   width:380px;
   height:560px;
@@ -1248,7 +1280,7 @@ body.admin-mode .showcase-admin-overlay{display:flex !important;}
   .profile-top{flex-direction:column;text-align:center;}
   .id-tag{position:static;display:inline-block;margin-bottom:12px;}
   .profile-card, .form-card, .playlist-card, .dashboard-card{padding:26px;border-radius:18px;}
-  .player-bar{left:16px;right:16px;width:auto;bottom:16px;}
+  .player-bar{left:calc(16px + env(safe-area-inset-left));right:calc(16px + env(safe-area-inset-right));width:auto;bottom:calc(16px + env(safe-area-inset-bottom));}
   .bulk-bar{top:70px;}
   .dashboard-stats-row{grid-template-columns:repeat(3,1fr);gap:8px;}
   .showcase-carousel{aspect-ratio:4/5;max-height:420px;}
@@ -1256,8 +1288,30 @@ body.admin-mode .showcase-admin-overlay{display:flex !important;}
   .showcase-row{flex-direction:column;}
   .showcase-row .showcase-carousel{flex:none;}
   .chat-popup{
-    right:10px;left:10px;bottom:10px;
+    right:calc(10px + env(safe-area-inset-right));left:calc(10px + env(safe-area-inset-left));bottom:calc(10px + env(safe-area-inset-bottom));
     width:auto;height:min(75vh,540px);
   }
   .chat-toggle-btn{font-size:9.5px;padding:6px 10px;}
+  .queue-overlay{padding:14px;}
+  .queue-box{width:100%;margin-bottom:100px;}
+}
+
+/* ---------- SMALL PHONE (≤400px) ---------- */
+@media (max-width:400px){
+  .brand-title{font-size:20px;}
+  nav{gap:2px;padding:4px;}
+  nav button{padding:8px 12px;font-size:11px;}
+  .header-right{gap:6px;}
+  /* Xếp ảnh lên trên, nội dung xuống dưới cho dễ đọc trên màn hình rất nhỏ */
+  .parcel{flex-direction:column;}
+  .parcel-img-wrap{width:100%;flex:0 0 auto;aspect-ratio:16/10;}
+  .parcel-tape{top:10px;left:-13px;font-size:9px;padding:3px 22px;}
+  .parcel-body{padding:14px 16px;}
+  .dashboard-stats-row{gap:6px;}
+  .dashboard-stat-box{padding:12px 8px;}
+  .dashboard-stat-num{font-size:20px;}
+  .dashboard-stat-label{font-size:9px;}
+  .home-top{gap:10px;}
+  .form-card,.profile-card,.playlist-card,.dashboard-card{padding:20px;}
+  .schedule-row{flex-direction:column;}
 }
