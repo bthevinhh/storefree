@@ -2067,7 +2067,7 @@ let currentTrackIndex = 0;
 let musicPlaying = false;
 let userHasInteracted = false;
 let seekDragging = false;
-let shuffleOn = false;
+let shuffleOn = true; // mặc định phát ngẫu nhiên khi vào web
 let repeatOn = false;
 let lastVolume = 0.5;
 let isMuted = false;
@@ -2106,6 +2106,9 @@ function setupPlayerForPlaylist(){
     return;
   }
   playerBar.classList.remove('hidden');
+  playerShuffleBtn.classList.toggle('toggled', shuffleOn);
+  // Vào web là phát ngẫu nhiên một bài bất kỳ trong danh sách, không theo thứ tự.
+  currentTrackIndex = shuffleOn ? Math.floor(Math.random()*playlist.length) : 0;
   if(currentTrackIndex >= playlist.length) currentTrackIndex = 0;
   loadTrack(currentTrackIndex, false);
   expandPlayer();
