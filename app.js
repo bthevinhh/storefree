@@ -2064,6 +2064,7 @@ const queueOverlay = document.getElementById('queueOverlay');
 const queueList = document.getElementById('queueList');
 
 let currentTrackIndex = 0;
+let playerInitialized = false; // đã chọn bài + nạp track lần đầu chưa (tránh nạp lại bài mỗi khi playlist render lại)
 let musicPlaying = false;
 let userHasInteracted = false;
 let seekDragging = false;
@@ -2107,10 +2108,19 @@ function setupPlayerForPlaylist(){
   }
   playerBar.classList.remove('hidden');
   playerShuffleBtn.classList.toggle('toggled', shuffleOn);
-  // Vào web là phát ngẫu nhiên một bài bất kỳ trong danh sách, không theo thứ tự.
-  currentTrackIndex = shuffleOn ? Math.floor(Math.random()*playlist.length) : 0;
-  if(currentTrackIndex >= playlist.length) currentTrackIndex = 0;
-  loadTrack(currentTrackIndex, false);
+  if(!playerInitialized){
+    // Chỉ chọn bài + nạp track ở lần đầu tiên player được khởi tạo (lúc mới vào web).
+    // Nếu không, mỗi lần playlist render lại (thêm/sửa/xoá bài) sẽ vô tình nạp lại
+    // bài mới và làm gián đoạn (tạm dừng) bài đang phát dở.
+    playerInitialized = true;
+    // Vào web là phát ngẫu nhiên một bài bất kỳ trong danh sách, không theo thứ tự.
+    currentTrackIndex = shuffleOn ? Math.floor(Math.random()*playlist.length) : 0;
+    if(currentTrackIndex >= playlist.length) currentTrackIndex = 0;
+    loadTrack(currentTrackIndex, false);
+  } else if(currentTrackIndex >= playlist.length){
+    currentTrackIndex = 0;
+    loadTrack(currentTrackIndex, false);
+  }
   expandPlayer();
 }
 
@@ -2248,6 +2258,14 @@ bgAudio.addEventListener('ended', ()=>{
   const track = playlist[currentTrackIndex];
   if(track) saveResumePosition(track.id, 0); // bài đã nghe xong, xoá vị trí dở để lần sau phát lại từ đầu
   nextTrack();
+});
+// Đồng bộ đĩa nhạc quay/dừng theo sự kiện THẬT của audio (không chỉ dựa vào playTrack()/pauseTrack()),
+// để tránh trường hợp promise play() bị trễ/huỷ ngầm khiến đĩa bị kẹt ở trạng thái đứng yên dù nhạc đang phát.
+bgAudio.addEventListener('play', ()=>{
+  playerDisc.classList.remove('paused');
+});
+bgAudio.addEventListener('pause', ()=>{
+  playerDisc.classList.add('paused');
 });
 // Định kỳ lưu vị trí nghe dở để không mất tiến trình nếu người dùng đóng tab đột ngột.
 setInterval(()=>{
